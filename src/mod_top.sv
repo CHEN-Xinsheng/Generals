@@ -126,10 +126,13 @@ wire [11:0] vdata;  // 当前纵坐标
 
 // 生成彩条数据，分别取坐标低位作为 RGB 值
 // 警告：该图像生成方式仅供演示，请勿使用横纵坐标驱动大量逻辑！！
-assign video_red = vdata < 200 ? hdata[8:1] : 0;
-assign video_green = vdata >= 200 && vdata < 400 ? hdata[8:1] : 0;
-assign video_blue = vdata >= 400 ? hdata[8:1] : 0;
 
+//assign video_red = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0))) ? 255 : 0;
+//assign video_green = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0)))  ? 255 : 0;
+//assign video_blue = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0))) ? 255 : 0;
+background_painter paint(
+	clk_vga, hdata, vdata, video_red, video_green, video_blue
+);
 assign video_clk = clk_vga;
 vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) vga800x600at75 (
     .clk(clk_vga), 
