@@ -130,7 +130,7 @@ wire [11:0] vdata;  // 当前纵坐标
 //assign video_red = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0))) ? 255 : 0;
 //assign video_green = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0)))  ? 255 : 0;
 //assign video_blue = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0))) ? 255 : 0;
-painter paint(
+background_painter paint(
 	clk_vga, hdata, vdata, video_red, video_green, video_blue
 );
 assign video_clk = clk_vga;

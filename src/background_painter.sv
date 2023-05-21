@@ -1,4 +1,4 @@
-module painter(
+module background_painter(
 	input wire clk,
 	input wire[11:0] hdata,
 	input wire[11:0] vdata,
