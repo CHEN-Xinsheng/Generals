@@ -12,9 +12,9 @@ module mod_top (
     output wire [7: 0] dpy_digit,   // 七段数码管笔段信号
     output wire [7: 0] dpy_segment, // 七段数码管位扫描信号
 
-    // // PS/2 键盘、鼠标接口
-    // input  wire        ps2_clock,   // PS/2 时钟信号
-    // input  wire        ps2_data,    // PS/2 数据信号
+    // PS/2 键盘、鼠标接口
+    input  wire        ps2_clock,   // PS/2 时钟信号
+    input  wire        ps2_data,    // PS/2 数据信号
 
     // // USB 转 TTL 调试串口
     // output wire        uart_txd,    // 串口发送数据
@@ -120,30 +120,61 @@ end
 assign leds[15:0] = number[15:0];
 assign leds[31:16] = ~(dip_sw);
 
-// 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
-wire [11:0] hdata;  // 当前横坐标
-wire [11:0] vdata;  // 当前纵坐标
 
-// 生成彩条数据，分别取坐标低位作为 RGB 值
-// 警告：该图像生成方式仅供演示，请勿使用横纵坐标驱动大量逻辑！！
-//assign video_red = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0))) ? 255 : 0;
-//assign video_green = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0)))  ? 255 : 0;
-//assign video_blue = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0))) ? 255 : 0;
+// 键盘输入处理模块
+logic        keyboard_locker;
+logic [2: 0] keyboard_data;
+Keyboard_Decoder keyboard_decoder (
+    // input 
+    .clock      (clk_in),
+    .reset      (reset_btn),
+    .ps2_clock  (ps2_clock),
+    .ps2_data   (ps2_data),
+    // output
+    .locker     (keyboard_locker),
+    .data       (keyboard_data)
+);
 
-Pixel_Controller #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) pixel_controller(
+
+// 游戏逻辑与显示模块
+wire [11:0] hdata;    // 当前横坐标
+wire [11:0] vdata;    // 当前纵坐标
+wire [7:0]  gen_red;  // 游戏逻辑部分生成的图像
+wire [7:0]  gen_green;
+wire [7:0]  gen_blue;
+wire        use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
+Game_Player #(12, 10) game_player (
+    //// input
+    // 与 Keyboard_Decoder 交互：获取键盘操作信号 
+    .keyboard_locker   (keyboard_locker),
+    .keyboard_data     (keyboard_data),
+    // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
+    .hdata             (hdata),
+    .vdata             (vdata),
+
+    //// output
+    .gen_red           (gen_red),
+    .gen_green         (gen_green),
+    .gen_blue          (gen_blue),
+    .use_gen           (use_gen),
+);
+
+
+// 显示控制模块
+Pixel_Controller #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) pixel_controller (
 
     //// input 
     // 时钟、复位
-    .clk_vga(clk_vga),            // vga 输入时钟 (50M)
-    .reset_n(reset_n),            // 上电复位信号，低有效
+    .clk_vga       (clk_vga),       // vga 输入时钟 (50M)
+    .reset_n       (reset_n),       // 上电复位信号，低有效
     // 游戏逻辑生成的图像
-    .gen_red(255),
-    .gen_green(0),
-    .gen_blue(0),
-    .use_gen(0),
+    .gen_red       (gen_red),
+    .gen_green     (gen_green),
+    .gen_blue      (gen_blue),
+    .use_gen       (use_gen),
     
     //// output
-    // 生成的当前横纵坐标
+    // 生成当前横纵坐标
     .hdata_o       (hdata),
     .vdata_o       (vdata),
     // 以下输出直接接到 mod_top 的对应输出
@@ -156,18 +187,13 @@ Pixel_Controller #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) pixel_cont
     .video_de_O    (video_de)
 );
 
-// background_painter paint(
-// 	hdata, vdata, video_red, video_green, video_blue
-// );
-// assign video_clk = clk_vga;
-// vga #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) vga800x600at75 (
-//     .clk(clk_vga), 
-//     .hdata(hdata), //横坐标
-//     .vdata(vdata), //纵坐标
-//     .hsync(video_hsync),
-//     .vsync(video_vsync),
-//     .data_enable(video_de)
-// );
+// 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
+// 生成彩条数据，分别取坐标低位作为 RGB 值
+// 警告：该图像生成方式仅供演示，请勿使用横纵坐标驱动大量逻辑！！
+//assign video_red = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0))) ? 255 : 0;
+//assign video_green = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0)))  ? 255 : 0;
+//assign video_blue = ((vdata>=50&&vdata<=550)&&(hdata>=50&&hdata<=550)&&!((vdata%50==0) || (hdata%50==0))) ? 255 : 0;
+
 /* =========== Demo code end =========== */
 
 endmodule
