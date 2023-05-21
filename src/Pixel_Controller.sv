@@ -9,7 +9,7 @@ module Pixel_Controller
     input  wire [7: 0] gen_red,
     input  wire [7: 0] gen_green,
     input  wire [7: 0] gen_blue,
-    input  wire        use_gen,      // 当前横纵坐标对应的像素是使用游戏逻辑生成的图像(1)还是背景图(0)
+    input  wire        use_gen,      // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 
     // 当前横纵坐标
     output wire [WIDTH - 1: 0] hdata_o,
@@ -33,7 +33,7 @@ assign video_clk_O = clk_vga;
 logic [WIDTH - 1: 0] hdata;
 logic [WIDTH - 1: 0] vdata;
 
-// 当前像素内容
+// 当前像素 RGB 值
 logic [7: 0] background_red;
 logic [7: 0] background_green;
 logic [7: 0] background_blue;
