@@ -32,8 +32,6 @@ assign video_clk_O = clk_vga;
 // 当前横纵坐标
 logic [WIDTH - 1: 0] hdata;
 logic [WIDTH - 1: 0] vdata;
-assign hdata_o = hdata;
-assign vdata_o = vdata;
 logic [15:0] address;
 logic [31:0] ramdata;
 logic [31:0] indata = 32'b0;
