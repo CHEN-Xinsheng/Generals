@@ -100,21 +100,28 @@ dpy_scan u_dpy_scan (
     .digit   (dpy_digit   ),
     .segment (dpy_segment )
 );
+// [TEST] test keyoard
+assign number[31:16] = 16'b0;  // 最高 4 位 hex 显示 0
+assign number[15:12] = {3'b0, keyboard_locker};  
+assign number[11: 8] = {3'b0, keyboard_data[2]};
+assign number[7:  4] = {3'b0, keyboard_data[1]};
+assign number[3:  0] = {3'b0, keyboard_data[0]};
 
-// 自增计数器，用于数码管演示
-reg [31: 0] counter;
-always @(posedge clk_in or posedge reset_btn) begin
-    if (reset_btn) begin
-	     counter <= 32'b0;
-		  number <= 32'b0;
-	 end else begin
-        counter <= counter + 32'b1;
-        if (counter == 32'd5_000_000) begin
-            counter <= 32'b0;
-            number <= number + 32'b1;
-        end
-	 end
-end
+
+// // 自增计数器，用于数码管演示
+// reg [31: 0] counter;
+// always @(posedge clk_in or posedge reset_btn) begin
+//     if (reset_btn) begin
+// 	     counter <= 32'b0;
+// 		  number <= 32'b0;
+// 	 end else begin
+//         counter <= counter + 32'b1;
+//         if (counter == 32'd5_000_000) begin
+//             counter <= 32'b0;
+//             number <= number + 32'b1;
+//         end
+// 	 end
+// end
 
 // LED
 assign leds[15:0] = number[15:0];
@@ -143,7 +150,7 @@ wire [7:0]  gen_red;  // 游戏逻辑部分生成的图像
 wire [7:0]  gen_green;
 wire [7:0]  gen_blue;
 wire        use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
-Game_Player #(12, 10) game_player (
+Game_Player #(12, 10, 4, 3, 9, 12) game_player (
     //// input
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
     .keyboard_locker   (keyboard_locker),
