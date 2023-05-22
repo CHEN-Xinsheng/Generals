@@ -17,5 +17,5 @@ module Game_Player
     output wire                   use_gen    // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 );
 
-assign use_gen = 0;
+assign use_gen = 1;
 endmodule

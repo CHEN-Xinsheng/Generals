@@ -32,8 +32,20 @@ assign video_clk_O = clk_vga;
 // 当前横纵坐标
 logic [WIDTH - 1: 0] hdata;
 logic [WIDTH - 1: 0] vdata;
+logic [15:0] address;
+logic [31:0] ramdata;
+logic [31:0] indata = 32'b0;
+logic [7:0] red;
+logic [7:0] green;
+logic [7:0] blue;
+assign vdata_o = vdata;
+assign hdata_o = hdata;
+assign address = (vdata%50)*50 + (hdata%50);
+assign red = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[7:0]:0;
+assign green = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[15:8]:0;
+assign blue = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[23:16]:0;
 
-// 当前像素 RGB 值
+// 背景的当前像素 RGB 值
 logic [7: 0] background_red;
 logic [7: 0] background_green;
 logic [7: 0] background_blue;
@@ -61,13 +73,19 @@ Background_Painter background_painter (
     .video_green  (background_green),
     .video_blue   (background_blue)
 );
-
+ram_bluecity ram_bluecity_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(ramdata)
+);
 // 图层选择
 always_comb begin
     if (use_gen) begin
-        video_red_O   = gen_red;
-        video_green_O = gen_green;
-        video_blue_O  = gen_blue;
+        video_red_O   = red;
+        video_green_O = green;
+        video_blue_O  = blue;
     end else begin
         video_red_O   = background_red;
         video_green_O = background_green;
