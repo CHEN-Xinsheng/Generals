@@ -10,10 +10,11 @@ module Game_Player
     input wire [VGA_WIDTH - 1: 0] vdata,
     
     //// output
+    // 游戏逻辑生成的图像
     output wire [7: 0]            gen_red,
     output wire [7: 0]            gen_green,
     output wire [7: 0]            gen_blue,
-    output wire                   use_gen
+    output wire                   use_gen    // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 );
 
 assign use_gen = 0;
