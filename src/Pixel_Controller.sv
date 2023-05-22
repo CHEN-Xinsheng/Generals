@@ -32,8 +32,10 @@ assign video_clk_O = clk_vga;
 // 当前横纵坐标
 logic [WIDTH - 1: 0] hdata;
 logic [WIDTH - 1: 0] vdata;
+assign hdata_o = hdata;
+assign vdata_o = vdata;
 
-// 当前像素 RGB 值
+// 背景的当前像素 RGB 值
 logic [7: 0] background_red;
 logic [7: 0] background_green;
 logic [7: 0] background_blue;

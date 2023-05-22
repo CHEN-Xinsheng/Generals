@@ -150,7 +150,7 @@ wire [7:0]  gen_red;  // 游戏逻辑部分生成的图像
 wire [7:0]  gen_green;
 wire [7:0]  gen_blue;
 wire        use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
-Game_Player #(12, 10) game_player (
+Game_Player #(12, 10, 4, 3, 9, 12) game_player (
     //// input
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
     .keyboard_locker   (keyboard_locker),
