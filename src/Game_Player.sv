@@ -17,6 +17,7 @@ module Game_Player
     output wire                   use_gen    // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 );
 
+<<<<<<< src/Game_Player.sv
 
 typedef enum logic[LOG2_PLAYER_CNT - 1:0] {NPC, RED, BLUE}                           player_t;   // 玩家类型
 typedef enum logic[1:0]  {TERRITORY,               MOUNTAIN,    CROWN,   CITY      } cell_t;     // 每个格子类型
@@ -55,5 +56,7 @@ initial begin
 end
 
 
+=======
+>>>>>>> src/Game_Player.sv
 assign use_gen = 1;
 endmodule
