@@ -16,5 +16,5 @@ module Game_Player
     output wire                   use_gen
 );
 
-assign use_gen = 0;
+assign use_gen = 1;
 endmodule
