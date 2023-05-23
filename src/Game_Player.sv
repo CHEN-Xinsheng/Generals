@@ -5,7 +5,7 @@ module Game_Player
     input wire                    reset,
     input wire                    clk_vga,
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
-    input wire                    keyboard_locker,
+    input wire                    keyboard_ready,
     input wire [2: 0]             keyboard_data,
 
     // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
@@ -13,6 +13,8 @@ module Game_Player
     input wire [VGA_WIDTH - 1: 0] vdata,
 
     //// output
+    // 与 Keyboard_Decoder 交互：输出键盘操作已被读取的信号
+    output wire                   keyboard_read_fin,  // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
     // 游戏逻辑生成的图像
     output wire [7: 0]            gen_red,
     output wire [7: 0]            gen_green,
@@ -29,10 +31,18 @@ typedef struct {
     cell_t                        cell_type;    // 该格子类型
     reg [LOG2_MAX_TROOP - 1: 0]   troop;        // 该格子兵力值
 } Cell;
+typedef enum logic[2:0]  {W, A, S, D, SPACE, Z} operation_t;       // 键盘操作类型
+//   - W：000
+//   - A：001
+//   - S：010
+//   - D：011
+//   - 空格：100
+//   - Z：101
 
 Cell cells [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0];    // 棋盘结构体数组
 
-
+operation_t                         operation;          // 最新一次操作
+logic                               op_todo;            // 最近一次操作是否尚未结算：是(1)，否(0)
 player_t                            current_player;     // 当前玩家
 logic    [LOG2_BORAD_WIDTH - 1: 0]  cursor_h;           // 当前光标位置的横坐标
 logic    [LOG2_BORAD_WIDTH - 1: 0]  cursor_v;           // 当前光标位置的纵坐标
@@ -51,20 +61,37 @@ initial begin
         end
     end
     current_player = player_t'(0);      // 初始回合玩家
-    cursor_h     = 'd3;
-    cursor_v     = 'd4;
-    cursor_type  = 'd0;
-    round        = 'd1;                 // 初始回合（从 1 开始）
+    cursor_h       = 'd3;
+    cursor_v       = 'd4;
+    cursor_type    = 'd0;
+    round          = 'd1;               // 初始回合（从 1 开始）
 end
 
 //// [游戏内部数据 END]
 
 
 //// [与输入模块交互部分 BEGIN]
-
+always_ff @ (posedge clock) begin
+    // 如果键盘输入模块有新数据 
+    if (keyboard_ready) begin
+        // 缓存一次未结算的操作
+        operation <= operation_t'(keyboard_data);
+        op_todo   <= 'b1;
+        // 并给键盘处理模块返回读取已完成的信号
+        keyboard_read_fin <= 'b1;
+    end else begin
+        keyboard_read_fin <= 'b0;
+    end
+end
 
 //// [与输入模块交互部分 END]
+always_ff @ (posedge clock) begin
+    // 结算一次操作
+    if (op_todo) begin
 
+        op_todo <= 'b0;  // 标记当前已经没有尚未结算的操作
+    end
+end
 
 //// [游戏逻辑部分 BEGIN]
 

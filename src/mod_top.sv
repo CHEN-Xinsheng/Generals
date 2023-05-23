@@ -4,8 +4,8 @@ module mod_top (
     input  wire reset_n,            // 上电复位信号，低有效
 
     // 开关、LED 等
-    input  wire clock_btn,          // 左侧微动开关，推荐作为手动时钟，带消抖电路，按下时为 1
-    input  wire reset_btn,          // 右侧微动开关，推荐作为手动复位，带消抖电路，按下时为 1
+    input  wire clock_btn,          // 右侧微动开关，推荐作为手动时钟，带消抖电路，按下时为 1
+    input  wire reset_btn,          // 左侧微动开关，推荐作为手动复位，带消抖电路，按下时为 1
     input  wire [3:0]  touch_btn,   // 四个按钮开关，按下时为 0
     input  wire [15:0] dip_sw,      // 16 位拨码开关，拨到 “ON” 时为 0
     output wire [31:0] leds,        // 32 位 LED 灯，输出 1 时点亮
@@ -101,8 +101,9 @@ dpy_scan u_dpy_scan (
     .segment (dpy_segment )
 );
 // [TEST] test keyoard
-assign number[31:16] = 16'b0;  // 最高 4 位 hex 显示 0
-assign number[15:12] = {3'b0, keyboard_locker};  
+assign number[31:20] = 12'b0;  // 最高 4 位 hex 显示 0
+assign number[19:16] = {3'b0, clock_btn};
+assign number[15:12] = {3'b0, keyboard_ready};
 assign number[11: 8] = {3'b0, keyboard_data[2]};
 assign number[7:  4] = {3'b0, keyboard_data[1]};
 assign number[3:  0] = {3'b0, keyboard_data[0]};
@@ -129,7 +130,8 @@ assign leds[31:16] = ~(dip_sw);
 
 
 // 键盘输入处理模块
-logic        keyboard_locker;
+logic        keyboard_ready;        // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
+logic        keyboard_read_fin;     // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
 logic [2: 0] keyboard_data;
 Keyboard_Decoder keyboard_decoder (
     // input 
@@ -137,8 +139,12 @@ Keyboard_Decoder keyboard_decoder (
     .reset      (reset_btn),
     .ps2_clock  (ps2_clock),
     .ps2_data   (ps2_data),
+    .read_fin   (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
+    // [TEST BEGIN]
+    // .read_fin   (clock_btn),
+    // [TEST END]
     // output
-    .locker     (keyboard_locker),
+    .ready      (keyboard_ready),    // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
     .data       (keyboard_data)
 );
 
@@ -156,14 +162,17 @@ Game_Player #(12, 10, 4, 3, 9, 12) game_player (
     .clock             (clk_in),
     .reset             (reset_btn),
     .clk_vga           (clk_vga),
-    // 与 Keyboard_Decoder 交互：获取键盘操作信号 
-    .keyboard_locker   (keyboard_locker),
+    // 与 Keyboard_Decoder 交互：获取键盘操作信号
+    .keyboard_ready    (keyboard_ready),  // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
     .keyboard_data     (keyboard_data),
     // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
     .hdata             (hdata),
     .vdata             (vdata),
 
     //// output
+    // 与 Keyboard_Decoder 交互：输出键盘操作已被读取的信号
+    .keyboard_read_fin (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
+    // 与 Pixel_Controller 交互：输出当前像素棋局图像，以及该像素是显示背景(use_gen=0)还是棋子(use_gen=1)
     .gen_red           (gen_red),
     .gen_green         (gen_green),
     .gen_blue          (gen_blue),
