@@ -1,6 +1,8 @@
 module Game_Player
 #(parameter VGA_WIDTH = 0, BORAD_WIDTH = 10, LOG2_BORAD_WIDTH = 4, LOG2_PLAYER_CNT = 3, LOG2_MAX_TROOP = 9, LOG2_MAX_ROUND = 12) (
     //// input
+    input wire                    clock,
+    input wire                    reset,
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
     input wire                    keyboard_locker,
     input wire [2: 0]             keyboard_data,
@@ -56,6 +58,11 @@ end
 
 //// [游戏内部数据 END]
 
+
+//// [与输入模块交互部分 BEGIN]
+
+
+//// [与输入模块交互部分 END]
 
 
 //// [游戏逻辑部分 BEGIN]
