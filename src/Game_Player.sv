@@ -3,6 +3,7 @@ module Game_Player
     //// input
     input wire                    clock,
     input wire                    reset,
+    input wire                    clk_vga,
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
     input wire                    keyboard_locker,
     input wire [2: 0]             keyboard_data,
@@ -74,6 +75,26 @@ end
 
 
 //// [游戏显示部分 BEGIN]
-assign use_gen = 1;
+logic [15:0] address;
+logic [31:0] ramdata;
+logic [31:0] indata = 32'b0;
+assign address = (vdata%50)*50 + (hdata%50);
+assign gen_red = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[7:0]:0;
+assign gen_green = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[15:8]:0;
+assign gen_blue = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[23:16]:0;
+ram_bluecity ram_bluecity_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(ramdata)
+);
+always_comb begin
+    if (hdata == 50 || hdata==100 || hdata==150 || hdata == 200|| hdata == 250 || hdata==300 || hdata==350 || hdata == 400 || hdata==450 || hdata==500 || hdata==550 || vdata == 50 || vdata==100 || vdata==150 || vdata == 200 || vdata == 250 || vdata==300 || vdata==350 || vdata == 400 || vdata==450 || vdata==500 || vdata==550) begin
+        use_gen = 0;
+    end else begin
+        use_gen = 1;
+    end
+end
 //// [游戏显示部分 END]
 endmodule

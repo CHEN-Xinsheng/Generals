@@ -155,6 +155,7 @@ Game_Player #(12, 10, 4, 3, 9, 12) game_player (
     // 时钟信号和重置信号
     .clock             (clk_in),
     .reset             (reset_btn),
+    .clk_vga           (clk_vga),
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
     .keyboard_locker   (keyboard_locker),
     .keyboard_data     (keyboard_data),
