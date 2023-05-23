@@ -133,7 +133,7 @@ module Keyboard_Decoder (
 										outb <= 3'b001;
                                         locker <= 1'b1;
 									end else if (inb == 16'hf01D) begin
-										outb <= 3'b000;
+										outb <= 3'b000; 
                                         locker <= 1'b1;
 									end else if (inb == 16'hf01B) begin
 										outb <= 3'b010;
