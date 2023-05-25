@@ -103,8 +103,9 @@ dpy_scan u_dpy_scan (
 
 // 参数设定
 parameter BORAD_WIDTH         = 10;  // 棋盘宽度
-parameter LOG2_BORAD_WIDTH    = 4;   // 棋盘宽度对 2 取对数（向上取整）
-parameter LOG2_PLAYER_CNT     = 3;   // 玩家数量对 2 取对数（向上取整）
+parameter LOG2_BORAD_WIDTH    = $clog2(BORAD_WIDTH);   // 棋盘宽度对 2 取对数（向上取整）
+parameter MAX_PLAYER_CNT      = 7;   // 玩家数量
+parameter LOG2_MAX_PLAYER_CNT = $clog2(MAX_PLAYER_CNT + 1);   // 玩家数量对 2 取对数（向上取整）
 parameter LOG2_PIECE_TYPE_CNT = 2;   // 棋子种类数量对 2 取对数（向上取整）
 parameter LOG2_MAX_TROOP      = 9;   // 格子最大兵力数对 2 取对数（向上取整）
 parameter LOG2_MAX_ROUND      = 12;  // 允许的最大回合数对 2 取对数（向上取整）
@@ -124,9 +125,10 @@ parameter LOG2_MAX_ROUND      = 12;  // 允许的最大回合数对 2 取对数�
 logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_h_o_test;         // 当前光标位置的横坐标（h 坐标）
 logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_v_o_test;         // 当前光标位置的纵坐标（v 坐标）
 logic [LOG2_MAX_TROOP - 1: 0]     troop_o_test;            // 当前格兵力
-logic [LOG2_PLAYER_CNT - 1:0]     owner_o_test;            // 当前格归属方
+logic [LOG2_MAX_PLAYER_CNT - 1:0] owner_o_test;            // 当前格归属方
 logic [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test;       // 当前格棋子类型
-logic [LOG2_PLAYER_CNT - 1:0]     current_player_o_test;   // 当前回合玩家，正常情况下应与当前格归属方一致
+logic [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test;   // 当前回合玩家，正常情况下应与当前格归属方一致
+logic [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test;      // 下一回合玩家
 
 assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
 assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
@@ -134,6 +136,7 @@ assign number[23:16] = troop_o_test[7:0];     // 3-4 当前格兵力
 assign number[15:12] = owner_o_test;          // 5   当前格归属方
 assign number[11: 8] = piece_type_o_test;     // 6   当前格棋子类型
 assign number[ 7: 4] = current_player_o_test; // 7   当前回合玩家
+assign number[ 3: 0] = next_player_o_test;    // 8   下一回合玩家
 // [TEST END]
 
 
@@ -188,8 +191,9 @@ wire        use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还�
 Game_Player #(
         .VGA_WIDTH             (12),
         .BORAD_WIDTH           (BORAD_WIDTH), 
-        .LOG2_BORAD_WIDTH      (LOG2_BORAD_WIDTH), 
-        .LOG2_PLAYER_CNT       (LOG2_PLAYER_CNT), 
+        .LOG2_BORAD_WIDTH      (LOG2_BORAD_WIDTH),
+        .MAX_PLAYER_CNT        (MAX_PLAYER_CNT),
+        .LOG2_MAX_PLAYER_CNT   (LOG2_MAX_PLAYER_CNT), 
         .LOG2_PIECE_TYPE_CNT   (LOG2_PIECE_TYPE_CNT), 
         .LOG2_MAX_TROOP        (LOG2_MAX_TROOP), 
         .LOG2_MAX_ROUND        (LOG2_MAX_ROUND)
@@ -201,6 +205,7 @@ Game_Player #(
         .owner_o_test          (owner_o_test),
         .piece_type_o_test     (piece_type_o_test),
         .current_player_o_test (current_player_o_test),
+        .next_player_o_test    (next_player_o_test),
         //// [TEST END]
 
         //// input
