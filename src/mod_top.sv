@@ -4,8 +4,8 @@ module mod_top (
     input  wire reset_n,            // 上电复位信号，低有效
 
     // 开关、LED 等
-    input  wire clock_btn,          // 左侧微动开关，推荐作为手动时钟，带消抖电路，按下时为 1
-    input  wire reset_btn,          // 右侧微动开关，推荐作为手动复位，带消抖电路，按下时为 1
+    input  wire clock_btn,          // 右侧微动开关，推荐作为手动时钟，带消抖电路，按下时为 1
+    input  wire reset_btn,          // 左侧微动开关，推荐作为手动复位，带消抖电路，按下时为 1
     input  wire [3:0]  touch_btn,   // 四个按钮开关，按下时为 0
     input  wire [15:0] dip_sw,      // 16 位拨码开关，拨到 “ON” 时为 0
     output wire [31:0] leds,        // 32 位 LED 灯，输出 1 时点亮
@@ -100,12 +100,42 @@ dpy_scan u_dpy_scan (
     .digit   (dpy_digit   ),
     .segment (dpy_segment )
 );
-// [TEST] test keyoard
-assign number[31:16] = 16'b0;  // 最高 4 位 hex 显示 0
-assign number[15:12] = {3'b0, keyboard_locker};  
-assign number[11: 8] = {3'b0, keyboard_data[2]};
-assign number[7:  4] = {3'b0, keyboard_data[1]};
-assign number[3:  0] = {3'b0, keyboard_data[0]};
+
+// 参数设定
+parameter BORAD_WIDTH         = 10;  // 棋盘宽度
+parameter LOG2_BORAD_WIDTH    = 4;   // 棋盘宽度对 2 取对数（向上取整）
+parameter LOG2_PLAYER_CNT     = 3;   // 玩家数量对 2 取对数（向上取整）
+parameter LOG2_PIECE_TYPE_CNT = 2;   // 棋子种类数量对 2 取对数（向上取整）
+parameter LOG2_MAX_TROOP      = 9;   // 格子最大兵力数对 2 取对数（向上取整）
+parameter LOG2_MAX_ROUND      = 12;  // 允许的最大回合数对 2 取对数（向上取整）
+
+
+
+// // [TEST BEGIN] 测试键盘处理模块的输出
+// assign number[31:20] = 12'b0;  // 最高 4 位 hex 显示 0
+// assign number[19:16] = {3'b0, clock_btn};
+// assign number[15:12] = {3'b0, keyboard_ready};
+// assign number[11: 8] = {3'b0, keyboard_data[2]};
+// assign number[7:  4] = {3'b0, keyboard_data[1]};
+// assign number[3:  0] = {3'b0, keyboard_data[0]};
+// // [TEST END] test keyoard
+
+// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
+logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_h_o_test;         // 当前光标位置的横坐标（h 坐标）
+logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_v_o_test;         // 当前光标位置的纵坐标（v 坐标）
+logic [LOG2_MAX_TROOP - 1: 0]     troop_o_test;            // 当前格兵力
+logic [LOG2_PLAYER_CNT - 1:0]     owner_o_test;            // 当前格归属方
+logic [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test;       // 当前格棋子类型
+logic [LOG2_PLAYER_CNT - 1:0]     current_player_o_test;   // 当前回合玩家，正常情况下应与当前格归属方一致
+
+assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
+assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
+assign number[23:16] = troop_o_test[7:0];     // 3-4 当前格兵力
+assign number[15:12] = owner_o_test;          // 5   当前格归属方
+assign number[11: 8] = piece_type_o_test;     // 6   当前格棋子类型
+assign number[ 7: 4] = current_player_o_test; // 7   当前回合玩家
+// [TEST END]
+
 
 
 // // 自增计数器，用于数码管演示
@@ -129,16 +159,21 @@ assign leds[31:16] = ~(dip_sw);
 
 
 // 键盘输入处理模块
-logic        keyboard_locker;
+logic        keyboard_ready;        // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
+logic        keyboard_read_fin;     // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
 logic [2: 0] keyboard_data;
 Keyboard_Decoder keyboard_decoder (
-    // input 
+    //// input 
     .clock      (clk_in),
     .reset      (reset_btn),
     .ps2_clock  (ps2_clock),
     .ps2_data   (ps2_data),
-    // output
-    .locker     (keyboard_locker),
+    .read_fin   (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
+    // [TEST BEGIN] 用手动时钟作为 逻辑模块 -> 键盘输入模块 的 表示数据已被读取的信号
+    // .read_fin   (clock_btn),
+    // [TEST END]
+    //// output
+    .ready      (keyboard_ready),    // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
     .data       (keyboard_data)
 );
 
@@ -150,30 +185,49 @@ wire [7:0]  gen_red;  // 游戏逻辑部分生成的图像
 wire [7:0]  gen_green;
 wire [7:0]  gen_blue;
 wire        use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
-Game_Player #(12, 10, 4, 3, 9, 12) game_player (
-    //// input
-    // 时钟信号和重置信号
-    .clock             (clk_in),
-    .reset             (reset_btn),
-    .clk_vga           (clk_vga),
-    // 与 Keyboard_Decoder 交互：获取键盘操作信号 
-    .keyboard_locker   (keyboard_locker),
-    .keyboard_data     (keyboard_data),
-    // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
-    .hdata             (hdata),
-    .vdata             (vdata),
+Game_Player #(
+        .VGA_WIDTH             (12),
+        .BORAD_WIDTH           (BORAD_WIDTH), 
+        .LOG2_BORAD_WIDTH      (LOG2_BORAD_WIDTH), 
+        .LOG2_PLAYER_CNT       (LOG2_PLAYER_CNT), 
+        .LOG2_PIECE_TYPE_CNT   (LOG2_PIECE_TYPE_CNT), 
+        .LOG2_MAX_TROOP        (LOG2_MAX_TROOP), 
+        .LOG2_MAX_ROUND        (LOG2_MAX_ROUND)
+    ) game_player (
+        //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
+        .cursor_h_o_test       (cursor_h_o_test),
+        .cursor_v_o_test       (cursor_v_o_test),
+        .troop_o_test          (troop_o_test),
+        .owner_o_test          (owner_o_test),
+        .piece_type_o_test     (piece_type_o_test),
+        .current_player_o_test (current_player_o_test),
+        //// [TEST END]
 
-    //// output
-    .gen_red           (gen_red),
-    .gen_green         (gen_green),
-    .gen_blue          (gen_blue),
-    .use_gen           (use_gen),
+        //// input
+        // 时钟信号和重置信号
+        .clock             (clk_in),
+        .reset             (reset_btn),
+        .clk_vga           (clk_vga),
+        // 与 Keyboard_Decoder 交互：获取键盘操作信号
+        .keyboard_ready    (keyboard_ready),  // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
+        .keyboard_data     (keyboard_data),
+        // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
+        .hdata             (hdata),
+        .vdata             (vdata),
+
+        //// output
+        // 与 Keyboard_Decoder 交互：输出键盘操作已被读取的信号
+        .keyboard_read_fin (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
+        // 与 Pixel_Controller 交互：输出当前像素棋局图像，以及该像素是显示背景(use_gen=0)还是棋子(use_gen=1)
+        .gen_red           (gen_red),
+        .gen_green         (gen_green),
+        .gen_blue          (gen_blue),
+        .use_gen           (use_gen),
 );
 
 
 // 显示控制模块
 Pixel_Controller #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) pixel_controller (
-
     //// input 
     // 时钟、复位
     .clk_vga       (clk_vga),       // vga 输入时钟 (50M)

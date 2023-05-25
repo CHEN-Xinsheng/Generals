@@ -4,9 +4,10 @@ module Keyboard_Decoder (
     input wire          reset,
     input wire          ps2_clock,   // PS/2 时钟信号
     input wire          ps2_data,    // PS/2 数据信号
-    
+    input wire          read_fin,    // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
+
     // output
-    output wire         locker,
+    output wire         ready,       // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
     output wire [2: 0]  data
 );
     // capture ps2 clock and data
@@ -44,7 +45,7 @@ module Keyboard_Decoder (
     wire odd_comb;
     assign odd_comb = code_reg[0] ^ code_reg[1] ^ code_reg[2] ^ code_reg[3] ^ code_reg[4] ^ code_reg[5] ^ code_reg[6] ^ code_reg[7];
 
-    assign scancode = valid_reg ? code_reg : 8'b0;
+    // assign scancode = valid_reg ? code_reg : 8'b0;
 	assign data = outb;
     assign valid = valid_reg;
 
@@ -63,6 +64,11 @@ module Keyboard_Decoder (
             data_reg <= ps2_data;
 
             valid_reg <= 1'b0;
+            // [ADD BEGIN] 如果收到逻辑模块发来的读取完成信号，直接将“有新数据”信号置 0，且不进行状态转移
+            if (read_fin) begin
+                ready <= 'b0;
+            end else begin
+            // [ADD END] 
             casez(state_reg)
                 STATE_DELAY: begin
                     state_reg <= STATE_START;
@@ -127,32 +133,32 @@ module Keyboard_Decoder (
                 STATE_PARITY: begin
                     if (rise_comb) begin
                         if (data_reg ^ odd_comb == 1'b1) begin
-									state_reg <= STATE_STOP;
-									inb = {inb, code_reg};
-									if (inb == 16'hf01C) begin
-										outb <= 3'b001;
-                                        locker <= 1'b1;
-									end else if (inb == 16'hf01D) begin
-										outb <= 3'b000; 
-                                        locker <= 1'b1;
-									end else if (inb == 16'hf01B) begin
-										outb <= 3'b010;
-                                        locker <= 1'b1;
-									end else if (inb == 16'hf023) begin
-										outb <= 3'b011;
-                                        locker <= 1'b1;
-									end else if (inb == 16'hf029) begin
-										outb <= 3'b100;
-                                        locker <= 1'b1;
-									end else if (inb == 16'hf01A) begin
-										outb <= 3'b101;
-                                        locker <= 1'b1;
-									end else begin
-										outb <= 3'b0;
-                                        locker <= 1'b0;
-									end
+                            state_reg <= STATE_STOP;
+                            inb = {inb, code_reg};
+                            if (inb == 16'hf01C) begin
+                                outb <= 3'b001;
+                                ready <= 1'b1;
+                            end else if (inb == 16'hf01D) begin
+                                outb <= 3'b000; 
+                                ready <= 1'b1;
+                            end else if (inb == 16'hf01B) begin
+                                outb <= 3'b010;
+                                ready <= 1'b1;
+                            end else if (inb == 16'hf023) begin
+                                outb <= 3'b011;
+                                ready <= 1'b1;
+                            end else if (inb == 16'hf029) begin
+                                outb <= 3'b100;
+                                ready <= 1'b1;
+                            end else if (inb == 16'hf01A) begin
+                                outb <= 3'b101;
+                                ready <= 1'b1;
+                            end else begin
+                                outb <= 3'b0;
+                                ready <= 1'b0;
+                            end
                         end else begin
-									state_reg <= STATE_DELAY;
+                            state_reg <= STATE_DELAY;
                         end
                     end
                 end
@@ -173,6 +179,9 @@ module Keyboard_Decoder (
                     state_reg <= STATE_DELAY;
                 end
             endcase
+            // [ADD BEGIN]
+            end
+            // [ADD END]
         end
     end
 
