@@ -195,16 +195,16 @@ endtask
 task automatic do_choose();
     casez (operation)
         W: // 上移
-            if (cursor.v >= 1)
+            if (cursor.v - 1 >= 0)
                 cursor.v <= cursor.v - 1;
         A: // 左移
-            if (cursor.h >= 1)
-                cursor.h <= cursor.h - 1;            
+            if (cursor.h - 1 >= 0)
+                cursor.h <= cursor.h - 1;
         S: // 下移
-            if (cursor.v <= BORAD_WIDTH - 1)
+            if (cursor.v + 1 < BORAD_WIDTH)
                 cursor.v <= cursor.v + 1;
         D: // 右移
-            if (cursor.h <= BORAD_WIDTH - 1)
+            if (cursor.h + 1 < BORAD_WIDTH)
                 cursor.h <= cursor.h + 1;
         Z: // 切换“全移/半移”
             ;  // 选择模式下无法切换“全移/半移”
