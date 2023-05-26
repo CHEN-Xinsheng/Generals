@@ -127,7 +127,7 @@ logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_v_o_test;         // 当前光标位置
 logic [LOG2_MAX_TROOP - 1: 0]     troop_o_test;            // 当前格兵力
 logic [LOG2_MAX_PLAYER_CNT - 1:0] owner_o_test;            // 当前格归属方
 logic [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test;       // 当前格棋子类型
-logic [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test;   // 当前回合玩家，正常情况下应与当前格归属方一致
+logic [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test;   // 当前回合玩家
 logic [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test;      // 下一回合玩家
 
 assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
