@@ -1,5 +1,12 @@
 module Game_Player
-#(parameter VGA_WIDTH = 0, BORAD_WIDTH = 10, LOG2_BORAD_WIDTH = 4, MAX_PLAYER_CNT = 7, LOG2_MAX_PLAYER_CNT = 3, LOG2_PIECE_TYPE_CNT = 2, LOG2_MAX_TROOP = 9, LOG2_MAX_ROUND = 12) (
+#(parameter VGA_WIDTH           = 0, 
+            BORAD_WIDTH         = 10, 
+            LOG2_BORAD_WIDTH    = 4, 
+            MAX_PLAYER_CNT      = 7, 
+            LOG2_MAX_PLAYER_CNT = 3, 
+            LOG2_PIECE_TYPE_CNT = 2, 
+            LOG2_MAX_TROOP      = 9, 
+            LOG2_MAX_ROUND      = 12) (
     //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
     output wire [LOG2_BORAD_WIDTH - 1: 0]   cursor_h_o_test,         // 当前光标位置的横坐标（h 坐标）
     output wire [LOG2_BORAD_WIDTH - 1: 0]   cursor_v_o_test,         // 当前光标位置的纵坐标（v 坐标）
@@ -178,8 +185,9 @@ task automatic game_logic_top();
                 end
 
             end
-            default:
+            default: begin
                 // assert 这种情况不应出现
+            end
         endcase
         // 标记当前操作队列为空
         operation <= NONE;
@@ -317,4 +325,5 @@ always_comb begin
     end
 end
 //// [游戏显示部分 END]
+
 endmodule
