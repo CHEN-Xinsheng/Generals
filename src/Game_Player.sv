@@ -1,12 +1,20 @@
 module Game_Player
-#(parameter VGA_WIDTH = 0, BORAD_WIDTH = 10, LOG2_BORAD_WIDTH = 4, LOG2_PLAYER_CNT = 3, LOG2_PIECE_TYPE_CNT = 2, LOG2_MAX_TROOP = 9, LOG2_MAX_ROUND = 12) (
+#(parameter VGA_WIDTH           = 0, 
+            BORAD_WIDTH         = 10, 
+            LOG2_BORAD_WIDTH    = 4, 
+            MAX_PLAYER_CNT      = 7, 
+            LOG2_MAX_PLAYER_CNT = 3, 
+            LOG2_PIECE_TYPE_CNT = 2, 
+            LOG2_MAX_TROOP      = 9, 
+            LOG2_MAX_ROUND      = 12) (
     //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
     output wire [LOG2_BORAD_WIDTH - 1: 0]   cursor_h_o_test,         // 当前光标位置的横坐标（h 坐标）
     output wire [LOG2_BORAD_WIDTH - 1: 0]   cursor_v_o_test,         // 当前光标位置的纵坐标（v 坐标）
     output wire [LOG2_MAX_TROOP - 1: 0]     troop_o_test,            // 当前格兵力
-    output wire [LOG2_PLAYER_CNT - 1:0]     owner_o_test,            // 当前格归属方
+    output wire [LOG2_MAX_PLAYER_CNT - 1:0] owner_o_test,            // 当前格归属方
     output wire [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test,       // 当前格棋子类型
-    output wire [LOG2_PLAYER_CNT - 1:0]     current_player_o_test,   // 当前回合玩家，正常情况下应与当前格归属方一致
+    output wire [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test,   // 当前回合玩家，正常情况下应与当前格归属方一致
+    output wire [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test,      // 下一回合玩家
     //// [TEST END]
 
     //// input
@@ -33,7 +41,7 @@ module Game_Player
 
 //// [游戏内部数据 BEGIN]
 // 玩家类型
-typedef enum logic [LOG2_PLAYER_CNT - 1:0]        {NPC, RED, BLUE} Player;
+typedef enum logic [LOG2_MAX_PLAYER_CNT - 1:0]    {NPC, RED, BLUE} Player;
 // 每个棋子类型
 typedef enum logic [LOG2_PIECE_TYPE_CNT - 1:0]    {TERRITORY,           MOUNTAIN,    CROWN,   CITY      } Piece;
                                                 // 普通领地（含空白格）， 山，         王城，    塔（城市）
@@ -48,39 +56,74 @@ typedef struct {
     logic [LOG2_BORAD_WIDTH - 1: 0]  h;         // 位置的横坐标（h 坐标）
     logic [LOG2_BORAD_WIDTH - 1: 0]  v;         // 位置的纵坐标（v 坐标）
 } Position;
+// 光标类型
+typedef enum logic [1:0] {
+    CHOOSE     = 2'b00,
+    MOVE_TOTAL = 2'b10,
+    MOVE_HALF  = 2'b11
+} Cursor_type;
 // 键盘操作类型
-typedef enum logic[2:0]  {W, A, S, D, SPACE, Z, NONE} Operation;
-//   - W：000
-//   - A：001
-//   - S：010
-//   - D：011
-//   - 空格：100
-//   - Z：101
-//   - NONE: 110 表示没有操作
+typedef enum logic[2:0]  {
+    W     = 3'b000, 
+    A     = 3'b001, 
+    S     = 3'b010, 
+    D     = 3'b011, 
+    SPACE = 3'b100, 
+    Z     = 3'b101, 
+    NONE  = 3'b110   // 表示没有操作
+} Operation;
 
 
 // 游戏数据
-Cell cells [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0];  // 棋盘结构体数组
+Cell      cells      [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0];  // 棋盘结构体数组
+Position  crowns_pos [MAX_PLAYER_CNT - 1:0];        // 每个玩家王城的位置
 
-Operation                         operation;          // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
-Player                            current_player;     // 当前玩家
-Position                          cursor;             // 当前光标位置
-logic    [1: 0]                   cursor_type;        // 光标所处模式：选择模式(0x)，行棋模式(1x)
-logic    [LOG2_MAX_ROUND: 0]      round;              // 当前回合（从 1 开始）
+Operation                     operation;            // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
+Player                        current_player;       // 当前玩家
+Position                      cursor;               // 当前光标位置
+Cursor_type                   cursor_type;          // 光标所处模式：选择模式(0x)，行棋模式(1x)
+logic    [LOG2_MAX_ROUND: 0]  round;                // 当前回合（从 1 开始）
+Player                        winner;               // 胜者
+
+
+// 游戏常数：玩家顺序表
+Player  next_player_table [MAX_PLAYER_CNT - 1:0];   // 每个玩家的下一玩家
+initial begin
+    next_player_table[RED]  = BLUE;
+    next_player_table[BLUE] = RED;
+    // default case
+    for (int i = 0; i < MAX_PLAYER_CNT; ++i) begin
+        if (i != RED && i != BLUE) begin
+            next_player_table[i] = NPC;   // assert 这种情况在游戏中不会出现
+        end
+    end
+end
 
 // 游戏数据初始化
 initial begin
-    for (int i = 0; i < BORAD_WIDTH; i++) begin
-        for (int j = 0; j < BORAD_WIDTH; j++) begin
-            // 每个格子都初始化为 RED 玩家的 CITY 类型，兵力 0x43
-            cells[i][j] = '{RED, CITY, 'h43};
+    // 各方王城坐标
+    crowns_pos[RED]  = '{'d2, 'd3};
+    crowns_pos[BLUE] = '{'d8, 'd7};
+    // 初始化棋盘
+    for (int h = 0; h < BORAD_WIDTH; h++) begin
+        for (int v = 0; v < BORAD_WIDTH; v++) begin
+            if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
+                cells[h][v] = '{RED, CROWN, 'h57};
+            end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
+                cells[h][v] = '{BLUE, CROWN, 'h59};
+            end else begin
+                // 初始化为 RED 玩家的 CITY 类型，兵力 0x43
+                cells[h][v] = '{RED, CITY, 'h43};
+            end
         end
     end
+
     operation      = NONE;              // 初始时，操作队列置空
     current_player = Player'(1);        // 初始回合玩家
     cursor         = '{'d0, 'd7};
-    cursor_type    = 'd0;
+    cursor_type    = CHOOSE;
     round          = 'd1;               // 初始回合（从 1 开始）
+    winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
 end
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
@@ -90,14 +133,15 @@ assign troop_o_test          = cells[cursor.h][cursor.v].troop;            // �
 assign owner_o_test          = cells[cursor.h][cursor.v].owner;            // 当前格归属方
 assign piece_type_o_test     = cells[cursor.h][cursor.v].piece_type;       // 当前格棋子类型
 assign current_player_o_test = current_player;                             // 当前回合玩家，正常情况下应与当前格归属方一致
+assign next_player_o_test    = next_player_table[current_player];          // 下一回合玩家
 // [TEST END]
 
 //// [游戏内部数据 END]
 
 
-//// [与输入模块交互部分 BEGIN]
+// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
 always_ff @ (posedge clock) begin
-    // 如果键盘输入模块有新数据 
+    // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
     if (keyboard_ready) begin
         // 缓存一次未结算的操作
         if (keyboard_data <= 'b101) begin
@@ -105,29 +149,153 @@ always_ff @ (posedge clock) begin
         end
         // 并给键盘处理模块返回读取已完成的信号
         keyboard_read_fin <= 'b1;
+    // 否则，本周期运行游戏逻辑
     end else begin
         keyboard_read_fin <= 'b0;
+        game_logic_top();
     end
 end
-//// [与输入模块交互部分 END]
 
 
 //// [游戏逻辑部分 BEGIN]
-always_ff @ (posedge clock) begin
-    // 如果当前有尚未结算的操作，那么结算一次操作
+// 游戏逻辑部分顶层函数
+task automatic game_logic_top();
+    // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空
     if (operation != NONE) begin
-        casez (operation)
-            : 
-            // 判断操作是否合法
-            default: 
-        endcase
+        casez (cursor_type)
+            CHOOSE: 
+                // 判断操作是否合法
+                if (choose_is_valid()) begin
+                    // 如果合法，执行一次操作
+                    do_choose();
+                end
+            MOVE_HALF || MOVE_TOTAL: begin
+                // 判断操作是否合法
+                if (move_is_valid()) begin
+                    // 如果合法，执行一次操作
+                    do_move();
+                end
+                // 胜负判断
+                if (check_win()) begin
+                    // 如果已分出胜负，那么标记游戏结束
+                    game_over();
+                end else begin
+                    // 如果未分出胜负，回合切换
+                    round_switch();
+                end
 
-        // 操作结算完成，将光标移动到下一回合玩家的王城
-        
-        // 标记当前已无尚未结算的操作
+            end
+            default: begin
+                // assert 这种情况不应出现
+            end
+        endcase
+        // 标记当前操作队列为空
         operation <= NONE;
     end
-end
+endtask
+
+// 判断操作是否合法
+// function automatic logic op_is_valid();
+//     casez (cursor_type)
+//         CHOOSE: 
+//             return choose_is_valid();
+//         MOVE_HALF: begin
+
+//             return 'b1;
+//         end
+//         MOVE_TOTAL: begin
+
+//             return 'b1;
+//         end
+//         default:
+//             return 'b0;   // assert 这种情况不应出现
+//     endcase
+// endfunction
+
+// 判断操作是否合法：当前光标为选择模式
+function automatic logic choose_is_valid();
+    casez (operation)
+        W: begin
+            
+        end
+        A: begin
+            
+        end
+        S: begin
+            
+        end
+        D: begin
+        
+        end
+        Z: 
+            return 'b0;  // 选择模式下无法切换“全移/半移”
+        SPACE:
+            return 'b1;  // 从选择模式切换到行棋模式是合法的
+        default: 
+            return 'b0;  // assert 这种情况不应出现
+    endcase
+endfunction
+
+// 判断操作是否合法：当前光标为行棋模式
+function automatic logic move_is_valid();
+    casez (operation)
+        W: begin
+            
+        end
+        A: begin
+            
+        end
+        S: begin
+            
+        end
+        D: begin
+        
+        end
+        Z: 
+            return 'b1;  // 行棋模式下可以切换“全移/半移”
+        SPACE:
+            return 'b1;  // 从行棋模式切换到选择模式是合法的
+        default: 
+            return 'b0;  // assert 这种情况不应出现
+    endcase
+endfunction
+
+// 执行一次操作：当前光标为选择模式
+task automatic do_choose();
+   
+endtask
+
+// 执行一次操作：当前光标为行棋模式
+task automatic do_move();
+   
+endtask 
+
+// 回合切换
+task automatic round_switch();
+    // 操作执行完成后
+    // 将光标移动到下一回合玩家的王城
+    current_player <=            next_player_table[current_player] ;
+    cursor         <= crowns_pos[next_player_table[current_player]];
+    // 光标模式设置为选择模式
+    cursor_type    <= CHOOSE;
+    // TODO 维护 round
+
+    // TODO 如果 round 达到特定值，增加兵力
+
+    // TODO 重启计时器
+endtask
+
+// 胜负判断
+function automatic logic check_win();
+    // 进行胜负判断，如果已分出胜负，记录胜者
+
+endfunction
+
+// 游戏结束
+task automatic game_over();
+    // （此时已经分出胜负）切换游戏状态到结束状态
+   
+endtask 
 
 
 //// [游戏逻辑部分 END]
@@ -157,4 +325,5 @@ always_comb begin
     end
 end
 //// [游戏显示部分 END]
+
 endmodule
