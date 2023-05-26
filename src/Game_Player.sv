@@ -15,6 +15,7 @@ module Game_Player
     output wire [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test,       // 当前格棋子类型
     output wire [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test,   // 当前回合玩家
     output wire [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test,      // 下一回合玩家
+    output wire [1: 0]                      cursor_type_o_test,      // 当前光标类型
     //// [TEST END]
 
     //// input
@@ -134,6 +135,7 @@ assign owner_o_test          = cells[cursor.h][cursor.v].owner;            // �
 assign piece_type_o_test     = cells[cursor.h][cursor.v].piece_type;       // 当前格棋子类型
 assign current_player_o_test = current_player;                             // 当前回合玩家
 assign next_player_o_test    = next_player_table[current_player];          // 下一回合玩家
+assign cursor_type_o_test    = cursor_type;                                // 当前光标类型
 // [TEST END]
 
 //// [游戏内部数据 END]
@@ -165,18 +167,21 @@ task automatic game_logic_top();
         casez (cursor_type)
             CHOOSE: begin
                 // 判断并执行一次操作（若合法）
-                do_choose();
+                do_with_cursor_type_choose();
             end
             MOVE_HALF || MOVE_TOTAL: begin
                 // 判断并执行一次操作（若合法）
-                do_move();
-                // 胜负判断
-                if (check_win()) begin
-                    // 如果已分出胜负，那么标记游戏结束
-                    game_over();
-                end else begin
-                    // 如果未分出胜负，回合切换
-                    round_switch();
+                do_with_cursor_type_move();
+                // 如果当前操作是行棋，还需进行胜负判断
+                if (operation == W || operation == A || operation == S || operation == D) begin
+                    // 胜负判断
+                    if (check_win()) begin
+                        // 如果已分出胜负，那么标记游戏结束
+                        game_over();
+                    end else begin
+                        // 如果未分出胜负，回合切换
+                        round_switch();
+                    end
                 end
             end
             default: begin
@@ -189,19 +194,19 @@ task automatic game_logic_top();
 endtask
 
 // 判断并执行一次操作：当前光标为选择模式
-task automatic do_choose();
+task automatic do_with_cursor_type_choose();
     casez (operation)
         W: // 上移
-            if (cursor.v - 1 >= 0)
+            if (cursor.v >= 1)
                 cursor.v <= cursor.v - 1;
         A: // 左移
-            if (cursor.h - 1 >= 0)
+            if (cursor.h >= 1)
                 cursor.h <= cursor.h - 1;
         S: // 下移
-            if (cursor.v + 1 < BORAD_WIDTH)
+            if (cursor.v <= BORAD_WIDTH - 2)
                 cursor.v <= cursor.v + 1;
         D: // 右移
-            if (cursor.h + 1 < BORAD_WIDTH)
+            if (cursor.h <= BORAD_WIDTH - 2)
                 cursor.h <= cursor.h + 1;
         Z: // 切换“全移/半移”
             ;  // 选择模式下无法切换“全移/半移”
@@ -216,17 +221,21 @@ endtask
 
 
 // 执行一次操作：当前光标为行棋模式
-task automatic do_move();
+task automatic do_with_cursor_type_move();
     // 保证当前格子属于操作方，且兵力至少是 2
     casez (operation)
         W: // 上移
-            do_move_WASD('{cursor.h,     cursor.v - 1});
+            if (cursor.v >= 1)
+                move_piece('{cursor.h,     cursor.v - 1});
         A: // 左移
-            do_move_WASD('{cursor.h - 1, cursor.v    });
+            if (cursor.h >= 1)
+                move_piece('{cursor.h - 1, cursor.v    });
         S: // 下移
-            do_move_WASD('{cursor.h,     cursor.v + 1});
+            if (cursor.v <= BORAD_WIDTH - 2)
+                move_piece('{cursor.h,     cursor.v + 1});
         D: // 右移
-            do_move_WASD('{cursor.h + 1, cursor.v    });
+            if (cursor.h <= BORAD_WIDTH - 2)
+                move_piece('{cursor.h + 1, cursor.v    });
         Z: // 切换“全移/半移”
             casez(cursor_type)
                 MOVE_HALF: 
@@ -244,45 +253,41 @@ task automatic do_move();
 endtask 
 
 // 执行一次行棋操作
-task automatic do_move_WASD(Position target_pos);
-    // 仅当目标位置仍在棋盘内才响应
-    if (is_in_board(target_pos)) 
-        casez (cells[target_pos.h][target_pos.v].owner)
-            // 如果目标位置属于 NPC
-            NPC:
-                casez (cells[target_pos.h][target_pos.v].piece_type)
-                    // 如果目标位置是普通空地
-                    TERRITORY: begin
-                        // 目标位置归属方、兵力更改，源位置兵力更改
-                        cells[target_pos.h][target_pos.v].owner <= current_player;
-                        if (cursor_type == MOVE_TOTAL) begin
-                            cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop - 1;
-                            cells[cursor.    h][cursor    .v].troop <= 1;
-                        end else begin
-                            cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop >> 1;
-                            cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
-                        end
-                        // 不需要移动光标（光标将自动切换到下一回合玩家的王城）
+task automatic move_piece(Position target_pos);
+    // 保证目标位置仍在棋盘内
+    casez (cells[target_pos.h][target_pos.v].owner)
+        // 如果目标位置属于 NPC
+        NPC:
+            casez (cells[target_pos.h][target_pos.v].piece_type)
+                // 如果目标位置是 NPC 空地或 NPC 城市
+                TERRITORY || CITY: begin
+                    // 目标位置归属方、兵力更改，源位置兵力更改
+                    cells[target_pos.h][target_pos.v].owner <= current_player;
+                    if (cursor_type == MOVE_TOTAL) begin
+                        cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop - 1;
+                        cells[cursor.    h][cursor    .v].troop <= 1;
+                    end else begin
+                        cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop >> 1;
+                        cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
                     end
-                    // 如果目标位置是山
-                    MOUNTAIN:
-                        ;   // 不做响应
-                    // 如果目标位置是城市
-                    CITY:
-                        ; 
-                    default:
-                        ; // assert 这种情况不应出现
-                    
-                    
-                endcase
-            // 如果目标位置属于己方
-            RED:
-                ;
-            BLUE:
-                ;
-            default:
-                ; // assert 这种情况不应出现
-        endcase
+                    // 不需要移动光标（光标将自动切换到下一回合玩家的王城）
+                end
+                // 如果目标位置是山
+                MOUNTAIN:
+                    ;  // 不做响应
+                default:
+                    ; // assert 这种情况不应出现
+            endcase
+        
+        // TODO
+        // 如果目标位置属于己方
+        RED:
+            ;
+        BLUE:
+            ;
+        default:
+            ; // assert 这种情况不应出现
+    endcase
 endtask
 
 // 回合切换
