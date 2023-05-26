@@ -303,25 +303,193 @@ endtask
 
 
 //// [游戏显示部分 BEGIN]
-logic [15:0] address;
-logic [31:0] ramdata;
-logic [31:0] indata = 32'b0;
-assign address = (vdata%50)*50 + (hdata%50);
-assign gen_red = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[7:0]:0;
-assign gen_green = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[15:8]:0;
-assign gen_blue = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[23:16]:0;
+logic [15:0] address;//ram地址
+logic [31:0] bluecity_ramdata;
+logic [31:0] bluecrown_ramdata;
+logic [31:0] redcity_ramdata;
+logic [31:0] redcrown_ramdata;
+logic [31:0] mountain_ramdata;
+logic [31:0] neutralcity_ramdata;//该地址对应的ram中各类棋子的地址
+logic [31:0] ramdata;//选择后的用作输出的ram数据
+logic [31:0] indata = 32'b0;//用于为ram输入赋值（没用）
+logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;//取模后的v
+logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;//取模后的h
+logic [7:0] cur_v;//从像素坐标转换到数组v坐标
+logic [7:0] cur_h;//从像素坐标转换到数组h坐标
+logic is_gen;
+assign address = vdata_to_ram*50 + hdata_to_ram;
+always_comb begin
+    if((hdata == 50*(cursor.h+1)+1 || hdata == 50*(cursor.h+1)+49 || vdata == 50*(cursor.v+1)+1 || vdata==50*(cursor.v+1)+49)
+    &&(vdata<=50*(cursor.v+1)+49 && vdata>=50*(cursor.v+1)+1 && hdata<=50*(cursor.h+1)+49 && hdata>=50*(cursor.h+1)+1)) begin
+        gen_red = 255;
+        gen_green = 255;
+        gen_blue = 255;
+    end else if (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50) begin
+        gen_red = ramdata[7:0];
+        gen_green = ramdata[15:8];
+        gen_blue = ramdata[23:16];
+    end else begin
+        gen_red = 0;
+        gen_green = 0;
+        gen_blue = 0;
+    end
+end
+//通过打表避免使用除法取模，找到对应ram中的坐标
+always_comb begin
+    if (hdata>=0 && hdata<50) begin
+        hdata_to_ram = hdata;
+        cur_h = 0;
+    end else if (hdata>=50 && hdata<100) begin
+        hdata_to_ram = hdata - 50;
+        cur_h = 0;
+    end else if (hdata>=100 && hdata<150) begin
+        hdata_to_ram = hdata - 100;
+        cur_h = 1;
+    end else if (hdata>=150 && hdata<200) begin
+        hdata_to_ram = hdata - 150;
+        cur_h = 2;
+    end else if (hdata>=200 && hdata<250) begin
+        hdata_to_ram = hdata - 200;
+        cur_h = 3;
+    end else if (hdata>=250 && hdata<300) begin
+        hdata_to_ram = hdata - 250;
+        cur_h = 4;
+    end else if (hdata>=300 && hdata<350) begin
+        hdata_to_ram = hdata - 300;
+        cur_h = 5;
+    end else if (hdata>=350 && hdata<400) begin
+        hdata_to_ram = hdata - 350;
+        cur_h = 6;
+    end else if (hdata>=400 && hdata<450) begin
+        hdata_to_ram = hdata - 400;
+        cur_h = 7;
+    end else if (hdata>=450 && hdata<500) begin
+        hdata_to_ram = hdata - 450;
+        cur_h = 8;
+    end else if (hdata>=500 && hdata<550) begin
+        hdata_to_ram = hdata - 500;
+        cur_h = 9;
+    end else begin
+        hdata_to_ram = 0;
+        cur_h = 0;
+    end
+end
+always_comb begin
+    if (vdata>=0 && vdata<50) begin
+        vdata_to_ram = vdata;
+        cur_v = 0;
+    end else if (vdata>=50 && vdata<100) begin
+        vdata_to_ram = vdata - 50;
+        cur_v = 0;
+    end else if (vdata>=100 && vdata<150) begin
+        vdata_to_ram = vdata - 100;
+        cur_v = 1;
+    end else if (vdata>=150 && vdata<200) begin
+        vdata_to_ram = vdata - 150;
+        cur_v = 2;
+    end else if (vdata>=200 && vdata<250) begin
+        vdata_to_ram = vdata - 200;
+        cur_v = 3;
+    end else if (vdata>=250 && vdata<300) begin
+        vdata_to_ram = vdata - 250;
+        cur_v = 4;
+    end else if (vdata>=300 && vdata<350) begin
+        vdata_to_ram = vdata - 300;
+        cur_v = 5;
+    end else if (vdata>=350 && vdata<400) begin
+        vdata_to_ram = vdata - 350;
+        cur_v = 6;
+    end else if (vdata>=400 && vdata<450) begin
+        vdata_to_ram = vdata - 400;
+        cur_v = 7;
+    end else if (vdata>=450 && vdata<500) begin
+        vdata_to_ram = vdata - 450;
+        cur_v = 8;
+    end else if (vdata>=500 && vdata<550) begin
+        vdata_to_ram = vdata - 500;
+        cur_v = 9;
+    end else begin
+        vdata_to_ram = 0;
+        cur_v = 0;
+    end
+end
+always_comb begin
+    if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == TERRITORY) begin
+        is_gen = 0;
+        ramdata = 0;
+    end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == MOUNTAIN) begin
+        is_gen = 1;
+        ramdata = mountain_ramdata;
+    end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == CITY) begin
+        is_gen = 1;
+        ramdata = neutralcity_ramdata;
+    end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CITY) begin
+        is_gen = 1;
+        ramdata = redcity_ramdata;
+    end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CROWN) begin
+        is_gen = 1;
+        ramdata = redcrown_ramdata;
+    end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CITY) begin
+        is_gen = 1;
+        ramdata = bluecity_ramdata;
+    end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CROWN) begin
+        is_gen = 1;
+        ramdata = bluecrown_ramdata;
+    end else begin
+        is_gen = 0;
+        ramdata = 0;
+    end
+end
+    
 ram_bluecity ram_bluecity_test (
     .address(address),
     .clock(clk_vga),
     .data(indata),
     .wren(0),
-    .q(ramdata)
+    .q(bluecity_ramdata)
+);
+ram_bluecrown ram_bluecrown_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(bluecrown_ramdata)
+);
+ram_redcity ram_redcity_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(redcity_ramdata)
+);
+ram_redcrown ram_redcrown_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(redcrown_ramdata)
+);
+ram_neutralcity ram_neutralcity_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(neutralcity_ramdata)
+);
+ram_mountain ram_mountain_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(mountain_ramdata)
 );
 always_comb begin
     if (hdata == 50 || hdata==100 || hdata==150 || hdata == 200|| hdata == 250 || hdata==300 || hdata==350 || hdata == 400 || hdata==450 || hdata==500 || hdata==550 || vdata == 50 || vdata==100 || vdata==150 || vdata == 200 || vdata == 250 || vdata==300 || vdata==350 || vdata == 400 || vdata==450 || vdata==500 || vdata==550) begin
         use_gen = 0;
-    end else begin
+    end else if (is_gen) begin
         use_gen = 1;
+    end else begin
+        use_gen = 0;
     end
 end
 //// [游戏显示部分 END]
