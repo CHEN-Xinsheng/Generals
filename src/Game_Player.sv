@@ -304,18 +304,140 @@ endtask
 
 //// [游戏显示部分 BEGIN]
 logic [15:0] address;
+logic [31:0] bluecity_ramdata;
+logic [31:0] bluecrown_ramdata;
+logic [31:0] redcity_ramdata;
+logic [31:0] redcrown_ramdata;
+logic [31:0] mountain_ramdata;
+logic [31:0] neutralcity_ramdata;
 logic [31:0] ramdata;
 logic [31:0] indata = 32'b0;
-assign address = (vdata%50)*50 + (hdata%50);
-assign gen_red = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[7:0]:0;
-assign gen_green = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[15:8]:0;
-assign gen_blue = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[23:16]:0;
+logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;
+logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;
+assign address = vdata_to_ram*50 + hdata_to_ram;
+assign ramdata = bluecrown_ramdata;
+// assign gen_red = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[7:0]:0;
+// assign gen_green = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[15:8]:0;
+// assign gen_blue = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[23:16]:0;
+always_comb begin
+    // if ((hdata==51 || hdata==99 || hdata==101 || hdata==149 || hdata==151 || hdata==199|| hdata==201 
+    // || hdata==249 || hdata==251 || hdata==299 || hdata==301 || hdata==349 || hdata==351 || hdata==399 
+    // || hdata== 401 || hdata==449 || hdata==451 || hdata==499 || hdata==501 || hdata == 549
+    // || vdata==51 || vdata==99 || vdata==101 || vdata==149 || vdata==151 || vdata==199|| vdata==201 
+    // || vdata==249 || vdata==251 || vdata==299 || vdata==301 || vdata==349 || vdata==351 || vdata==399 
+    // || vdata== 401 || vdata==449 || vdata==451 || vdata==499 || vdata==501 || vdata == 549)
+    if((hdata == 151 || hdata == 199 || vdata == 151 || vdata==199)
+    &&(vdata<=199 && vdata>=151 && hdata<=199 && hdata>=151)) begin
+    //(vdata<=550 && vdata>=50 && hdata<=550 && hdata>=50)) begin
+        gen_red = 255;
+        gen_green = 255;
+        gen_blue = 255;
+    end else if (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50) begin
+        gen_red = ramdata[7:0];
+        gen_green = ramdata[15:8];
+        gen_blue = ramdata[23:16];
+    end else begin
+        gen_red = 0;
+        gen_green = 0;
+        gen_blue = 0;
+    end
+end
+
+always_comb begin
+    if (hdata>=0 && hdata<50) begin
+        hdata_to_ram = hdata;
+    end else if (hdata>=50 && hdata<100) begin
+        hdata_to_ram = hdata - 50;
+    end else if (hdata>=100 && hdata<150) begin
+        hdata_to_ram = hdata - 100;
+    end else if (hdata>=150 && hdata<200) begin
+        hdata_to_ram = hdata - 150;
+    end else if (hdata>=200 && hdata<250) begin
+        hdata_to_ram = hdata - 200;
+    end else if (hdata>=250 && hdata<300) begin
+        hdata_to_ram = hdata - 250;
+    end else if (hdata>=300 && hdata<350) begin
+        hdata_to_ram = hdata - 300;
+    end else if (hdata>=350 && hdata<400) begin
+        hdata_to_ram = hdata - 350;
+    end else if (hdata>=400 && hdata<450) begin
+        hdata_to_ram = hdata - 400;
+    end else if (hdata>=450 && hdata<500) begin
+        hdata_to_ram = hdata - 450;
+    end else if (hdata>=500 && hdata<550) begin
+        hdata_to_ram = hdata - 500;
+    end else begin
+        hdata_to_ram = 0;
+    end
+end
+always_comb begin
+    if (vdata>=0 && vdata<50) begin
+        vdata_to_ram = vdata;
+    end else if (vdata>=50 && vdata<100) begin
+        vdata_to_ram = vdata - 50;
+    end else if (vdata>=100 && vdata<150) begin
+        vdata_to_ram = vdata - 100;
+    end else if (vdata>=150 && vdata<200) begin
+        vdata_to_ram = vdata - 150;
+    end else if (vdata>=200 && vdata<250) begin
+        vdata_to_ram = vdata - 200;
+    end else if (vdata>=250 && vdata<300) begin
+        vdata_to_ram = vdata - 250;
+    end else if (vdata>=300 && vdata<350) begin
+        vdata_to_ram = vdata - 300;
+    end else if (vdata>=350 && vdata<400) begin
+        vdata_to_ram = vdata - 350;
+    end else if (vdata>=400 && vdata<450) begin
+        vdata_to_ram = vdata - 400;
+    end else if (vdata>=450 && vdata<500) begin
+        vdata_to_ram = vdata - 450;
+    end else if (vdata>=500 && vdata<550) begin
+        vdata_to_ram = vdata - 500;
+    end else begin
+        vdata_to_ram = 0;
+    end
+end
 ram_bluecity ram_bluecity_test (
     .address(address),
     .clock(clk_vga),
     .data(indata),
     .wren(0),
-    .q(ramdata)
+    .q(bluecity_ramdata)
+);
+ram_bluecrown ram_bluecrown_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(bluecrown_ramdata)
+);
+ram_redcity ram_redcity_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(redcity_ramdata)
+);
+ram_redcrown ram_redcrown_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(redcrown_ramdata)
+);
+ram_neutralcity ram_neutralcity_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(neutralcity_ramdata)
+);
+ram_mountain ram_mountain_test (
+    .address(address),
+    .clock(clk_vga),
+    .data(indata),
+    .wren(0),
+    .q(mountain_ramdata)
 );
 always_comb begin
     if (hdata == 50 || hdata==100 || hdata==150 || hdata == 200|| hdata == 250 || hdata==300 || hdata==350 || hdata == 400 || hdata==450 || hdata==500 || hdata==550 || vdata == 50 || vdata==100 || vdata==150 || vdata == 200 || vdata == 250 || vdata==300 || vdata==350 || vdata == 400 || vdata==450 || vdata==500 || vdata==550) begin
