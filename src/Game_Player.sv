@@ -13,7 +13,7 @@ module Game_Player
     output wire [LOG2_MAX_TROOP - 1: 0]     troop_o_test,            // 当前格兵力
     output wire [LOG2_MAX_PLAYER_CNT - 1:0] owner_o_test,            // 当前格归属方
     output wire [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test,       // 当前格棋子类型
-    output wire [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test,   // 当前回合玩家，正常情况下应与当前格归属方一致
+    output wire [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test,   // 当前回合玩家
     output wire [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test,      // 下一回合玩家
     //// [TEST END]
 
@@ -119,8 +119,8 @@ initial begin
     end
 
     operation      = NONE;              // 初始时，操作队列置空
-    current_player = Player'(1);        // 初始回合玩家
-    cursor         = '{'d0, 'd7};
+    current_player = Player'(1);        // 先手玩家
+    cursor         = '{'d0, 'd0};
     cursor_type    = CHOOSE;
     round          = 'd1;               // 初始回合（从 1 开始）
     winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
@@ -132,14 +132,14 @@ assign cursor_v_o_test       = cursor.v;                                   // �
 assign troop_o_test          = cells[cursor.h][cursor.v].troop;            // 当前格兵力
 assign owner_o_test          = cells[cursor.h][cursor.v].owner;            // 当前格归属方
 assign piece_type_o_test     = cells[cursor.h][cursor.v].piece_type;       // 当前格棋子类型
-assign current_player_o_test = current_player;                             // 当前回合玩家，正常情况下应与当前格归属方一致
+assign current_player_o_test = current_player;                             // 当前回合玩家
 assign next_player_o_test    = next_player_table[current_player];          // 下一回合玩家
 // [TEST END]
 
 //// [游戏内部数据 END]
 
 
-// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
+//// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
 always_ff @ (posedge clock) begin
     // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
     if (keyboard_ready) begin
@@ -158,17 +158,15 @@ end
 
 
 //// [游戏逻辑部分 BEGIN]
-// 游戏逻辑部分顶层函数
+// 游戏逻辑部分顶层 task
 task automatic game_logic_top();
     // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空
     if (operation != NONE) begin
         casez (cursor_type)
-            CHOOSE: 
-                // 判断操作是否合法
-                if (choose_is_valid()) begin
-                    // 如果合法，执行一次操作
-                    do_choose();
-                end
+            CHOOSE: begin
+                // 判断并执行一次操作（若合法）
+                do_choose();
+            end
             MOVE_HALF || MOVE_TOTAL: begin
                 // 判断操作是否合法
                 if (move_is_valid()) begin
@@ -183,7 +181,6 @@ task automatic game_logic_top();
                     // 如果未分出胜负，回合切换
                     round_switch();
                 end
-
             end
             default: begin
                 // assert 这种情况不应出现
@@ -194,47 +191,30 @@ task automatic game_logic_top();
     end
 endtask
 
-// 判断操作是否合法
-// function automatic logic op_is_valid();
-//     casez (cursor_type)
-//         CHOOSE: 
-//             return choose_is_valid();
-//         MOVE_HALF: begin
-
-//             return 'b1;
-//         end
-//         MOVE_TOTAL: begin
-
-//             return 'b1;
-//         end
-//         default:
-//             return 'b0;   // assert 这种情况不应出现
-//     endcase
-// endfunction
-
-// 判断操作是否合法：当前光标为选择模式
-function automatic logic choose_is_valid();
+// 判断并执行一次操作：当前光标为选择模式
+task automatic do_choose();
     casez (operation)
-        W: begin
-            
-        end
-        A: begin
-            
-        end
-        S: begin
-            
-        end
-        D: begin
-        
-        end
-        Z: 
-            return 'b0;  // 选择模式下无法切换“全移/半移”
-        SPACE:
-            return 'b1;  // 从选择模式切换到行棋模式是合法的
-        default: 
-            return 'b0;  // assert 这种情况不应出现
+        W: // 上移
+            if (cursor.v >= 1)
+                cursor.v <= cursor.v - 1;
+        A: // 左移
+            if (cursor.h >= 1)
+                cursor.h <= cursor.h - 1;            
+        S: // 下移
+            if (cursor.v <= BORAD_WIDTH - 1)
+                cursor.v <= cursor.v + 1;
+        D: // 右移
+            if (cursor.h <= BORAD_WIDTH - 1)
+                cursor.h <= cursor.h + 1;
+        Z: // 切换“全移/半移”
+            ;  // 选择模式下无法切换“全移/半移”
+        SPACE: // 切换“选择模式/行棋模式”
+            if (cells[cursor.h][cursor.v].owner == current_player)
+                cursor_type <= MOVE_TOTAL;  // 如果当前格子属于操作方，从选择模式切换到行棋模式是合法的
+        default:
+            ; // assert 这种情况不应出现
     endcase
-endfunction
+endtask
 
 // 判断操作是否合法：当前光标为行棋模式
 function automatic logic move_is_valid();
@@ -259,11 +239,6 @@ function automatic logic move_is_valid();
             return 'b0;  // assert 这种情况不应出现
     endcase
 endfunction
-
-// 执行一次操作：当前光标为选择模式
-task automatic do_choose();
-   
-endtask
 
 // 执行一次操作：当前光标为行棋模式
 task automatic do_move();
