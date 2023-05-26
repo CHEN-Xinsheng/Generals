@@ -317,10 +317,13 @@ logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;//取模后的h
 logic [7:0] cur_v;//从像素坐标转换到数组v坐标
 logic [7:0] cur_h;//从像素坐标转换到数组h坐标
 logic is_gen;
+logic cursor_array [9:0] = '{'d50, 'd100, 'd150, 'd200, 'd250, 'd300, 'd350, 'd400, 'd450, 'd500};
 assign address = vdata_to_ram*50 + hdata_to_ram;
 always_comb begin
-    if((hdata == 50*(cursor.h+1)+1 || hdata == 50*(cursor.h+1)+49 || vdata == 50*(cursor.v+1)+1 || vdata==50*(cursor.v+1)+49)
-    &&(vdata<=50*(cursor.v+1)+49 && vdata>=50*(cursor.v+1)+1 && hdata<=50*(cursor.h+1)+49 && hdata>=50*(cursor.h+1)+1)) begin
+    //if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+49 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+49)
+    //&&(vdata<=cursor_array[cursor.v]+49 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+49 && hdata>=cursor_array[cursor.h]+1)) begin
+    if((hdata ==50*(cursor.h+1)+1 || hdata == 50*(cursor.h+1)+49 || vdata == 50*(cursor.v+1)+1 || vdata==50*(cursor.v+1)+49)
+    &&(vdata<=50*(cursor.v+1)+49 && vdata>=50*(cursor.v+1)+1 && hdata<=50*(cursor.h+1)+49 && hdata>=50*(cursor.h+1)+1)) begin    
         gen_red = 255;
         gen_green = 255;
         gen_blue = 255;
@@ -334,7 +337,7 @@ always_comb begin
         gen_blue = 0;
     end
 end
-//通过打表避免使用除法取模，找到对应ram中的坐标
+//通过打表避免使用除法取模，找到对应ram中的坐标和棋盘坐标
 always_comb begin
     if (hdata>=0 && hdata<50) begin
         hdata_to_ram = hdata;
@@ -414,32 +417,72 @@ always_comb begin
     end
 end
 always_comb begin
+    // if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == TERRITORY) begin
+    //     is_gen = 1;
+    //     ramdata = 0;
+    // end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == MOUNTAIN) begin
+    //     is_gen = 1;
+    //     ramdata = mountain_ramdata;
+    // end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == CITY) begin
+    //     is_gen = 1;
+    //     ramdata = neutralcity_ramdata;
+    // end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CITY) begin
+    //     is_gen = 1;
+    //     ramdata = redcity_ramdata;
+    // end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CROWN) begin
+    //     is_gen = 1;
+    //     ramdata = redcrown_ramdata;
+    // end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CITY) begin
+    //     is_gen = 1;
+    //     ramdata = bluecity_ramdata;
+    // end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CROWN) begin
+    //     is_gen = 1;
+    //     ramdata = bluecrown_ramdata;
+    // end else begin
+    //     is_gen = 1;
+    //     ramdata = 0;
+    // end
     if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == TERRITORY) begin
-        is_gen = 0;
-        ramdata = 0;
-    end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == MOUNTAIN) begin
-        is_gen = 1;
-        ramdata = mountain_ramdata;
-    end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == CITY) begin
-        is_gen = 1;
-        ramdata = neutralcity_ramdata;
-    end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CITY) begin
-        is_gen = 1;
-        ramdata = redcity_ramdata;
-    end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CROWN) begin
-        is_gen = 1;
-        ramdata = redcrown_ramdata;
-    end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CITY) begin
-        is_gen = 1;
-        ramdata = bluecity_ramdata;
-    end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CROWN) begin
-        is_gen = 1;
-        ramdata = bluecrown_ramdata;
+        if (cells[cur_h][cur_v].piece_type == CITY) begin
+            is_gen = 1;
+            ramdata = neutralcity_ramdata;
+        end else if (cells[cur_h][cur_v].piece_type == MOUNTAIN) begin 
+            is_gen = 1;
+            ramdata = mountain_ramdata;
+        end else begin
+            is_gen = 0;
+            ramdata = 0;
+        end
+    end else if (cells[cur_h][cur_v].owner == RED) begin
+        if (cells[cur_h][cur_v].piece_type == CROWN) begin
+            is_gen = 1;
+            ramdata = redcrown_ramdata;
+        end else if (cells[cur_h][cur_v].piece_type == CITY) begin
+            is_gen = 1;
+            ramdata = redcity_ramdata;
+        end else begin
+            is_gen = 0;
+            ramdata = 0;
+        end
+    end else if (cells[cur_h][cur_v].owner == BLUE) begin
+        if (cells[cur_h][cur_v].piece_type == CROWN) begin
+            is_gen = 1;
+            ramdata = bluecrown_ramdata;
+        end else if (cells[cur_h][cur_v].piece_type == CITY) begin
+            is_gen = 1;
+            ramdata = bluecity_ramdata;
+        end else begin
+            is_gen = 0;
+            ramdata = 0;
+        end
     end else begin
         is_gen = 0;
         ramdata = 0;
     end
+    // is_gen = 1;
+    // ramdata = bluecity_ramdata;
 end
+
     
 ram_bluecity ram_bluecity_test (
     .address(address),
@@ -484,7 +527,7 @@ ram_mountain ram_mountain_test (
     .q(mountain_ramdata)
 );
 always_comb begin
-    if (hdata == 50 || hdata==100 || hdata==150 || hdata == 200|| hdata == 250 || hdata==300 || hdata==350 || hdata == 400 || hdata==450 || hdata==500 || hdata==550 || vdata == 50 || vdata==100 || vdata==150 || vdata == 200 || vdata == 250 || vdata==300 || vdata==350 || vdata == 400 || vdata==450 || vdata==500 || vdata==550) begin
+    if (hdata == 50 || hdata==100 || hdata==150 || hdata == 200|| hdata == 250 || hdata == 300 || hdata == 350 || hdata == 400 || hdata == 450 || hdata == 500 || hdata == 550 || vdata == 50 || vdata == 100 || vdata == 150 || vdata == 200 || vdata == 250 || vdata == 300 || vdata == 350 || vdata == 400 || vdata == 450 || vdata == 500 || vdata == 550) begin
         use_gen = 0;
     end else if (is_gen) begin
         use_gen = 1;
