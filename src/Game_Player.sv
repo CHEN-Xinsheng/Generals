@@ -303,22 +303,22 @@ endtask
 
 
 //// [游戏显示部分 BEGIN]
-logic [15:0] address;
+logic [15:0] address;//ram地址
 logic [31:0] bluecity_ramdata;
 logic [31:0] bluecrown_ramdata;
 logic [31:0] redcity_ramdata;
 logic [31:0] redcrown_ramdata;
 logic [31:0] mountain_ramdata;
-logic [31:0] neutralcity_ramdata;
-logic [31:0] ramdata;
-logic [31:0] indata = 32'b0;
-logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;
-logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;
+logic [31:0] neutralcity_ramdata;//该地址对应的ram中各类棋子的地址
+logic [31:0] ramdata;//选择后的用作输出的ram数据
+logic [31:0] indata = 32'b0;//用于为ram输入赋值（没用）
+logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;//取模后的v
+logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;//取模后的h
+logic [7:0] cur_v;//从像素坐标转换到数组v坐标
+logic [7:0] cur_h;//从像素坐标转换到数组h坐标
+logic is_gen;
 assign address = vdata_to_ram*50 + hdata_to_ram;
-assign ramdata = bluecrown_ramdata;
-// assign gen_red = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[7:0]:0;
-// assign gen_green = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[15:8]:0;
-// assign gen_blue = (vdata<=550&&vdata>=50&&hdata<=550&&hdata>=50)? ramdata[23:16]:0;
+//assign ramdata = bluecrown_ramdata;
 always_comb begin
     // if ((hdata==51 || hdata==99 || hdata==101 || hdata==149 || hdata==151 || hdata==199|| hdata==201 
     // || hdata==249 || hdata==251 || hdata==299 || hdata==301 || hdata==349 || hdata==351 || hdata==399 
@@ -342,30 +342,40 @@ always_comb begin
         gen_blue = 0;
     end
 end
-
+//通过打表避免使用除法取模，找到对应ram中的坐标
 always_comb begin
     if (hdata>=0 && hdata<50) begin
         hdata_to_ram = hdata;
     end else if (hdata>=50 && hdata<100) begin
         hdata_to_ram = hdata - 50;
+        cur_h = 0;
     end else if (hdata>=100 && hdata<150) begin
         hdata_to_ram = hdata - 100;
+        cur_h = 1;
     end else if (hdata>=150 && hdata<200) begin
         hdata_to_ram = hdata - 150;
+        cur_h = 2;
     end else if (hdata>=200 && hdata<250) begin
         hdata_to_ram = hdata - 200;
+        cur_h = 3;
     end else if (hdata>=250 && hdata<300) begin
         hdata_to_ram = hdata - 250;
+        cur_h = 4;
     end else if (hdata>=300 && hdata<350) begin
         hdata_to_ram = hdata - 300;
+        cur_h = 5;
     end else if (hdata>=350 && hdata<400) begin
         hdata_to_ram = hdata - 350;
+        cur_h = 6;
     end else if (hdata>=400 && hdata<450) begin
         hdata_to_ram = hdata - 400;
+        cur_h = 7;
     end else if (hdata>=450 && hdata<500) begin
         hdata_to_ram = hdata - 450;
+        cur_h = 8;
     end else if (hdata>=500 && hdata<550) begin
         hdata_to_ram = hdata - 500;
+        cur_h = 9;
     end else begin
         hdata_to_ram = 0;
     end
@@ -375,28 +385,66 @@ always_comb begin
         vdata_to_ram = vdata;
     end else if (vdata>=50 && vdata<100) begin
         vdata_to_ram = vdata - 50;
+        cur_v = 0;
     end else if (vdata>=100 && vdata<150) begin
         vdata_to_ram = vdata - 100;
+        cur_v = 1;
     end else if (vdata>=150 && vdata<200) begin
         vdata_to_ram = vdata - 150;
+        cur_v = 2;
     end else if (vdata>=200 && vdata<250) begin
         vdata_to_ram = vdata - 200;
+        cur_v = 3;
     end else if (vdata>=250 && vdata<300) begin
         vdata_to_ram = vdata - 250;
+        cur_v = 4;
     end else if (vdata>=300 && vdata<350) begin
         vdata_to_ram = vdata - 300;
+        cur_v = 5;
     end else if (vdata>=350 && vdata<400) begin
         vdata_to_ram = vdata - 350;
+        cur_v = 6;
     end else if (vdata>=400 && vdata<450) begin
         vdata_to_ram = vdata - 400;
+        cur_v = 7;
     end else if (vdata>=450 && vdata<500) begin
         vdata_to_ram = vdata - 450;
+        cur_v = 8;
     end else if (vdata>=500 && vdata<550) begin
         vdata_to_ram = vdata - 500;
+        cur_v = 9;
     end else begin
         vdata_to_ram = 0;
     end
 end
+always_comb begin
+    if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == TERRITORY) begin
+        is_gen = 0;
+        ramdata = 0;
+    end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == MOUNTAIN) begin
+        is_gen = 1;
+        ramdata = ram_mountain;
+    end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == CITY) begin
+        is_gen = 1;
+        ramdata = ram_neutralcity;
+    end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CITY) begin
+        is_gen = 1;
+        ramdata = ram_redcity;
+    end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CROWN) begin
+        is_gen = 1;
+        ramdata = ram_redcrown;
+    end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CITY) begin
+        is_gen = 1;
+        ramdata = ram_bluecity;
+    end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CROWN) begin
+        is_gen = 1;
+        ramdata = ram_bluecrown;
+    end else begin
+        is_gen = 0;
+        ramdata = 0;
+    end
+end
+    
 ram_bluecity ram_bluecity_test (
     .address(address),
     .clock(clk_vga),
