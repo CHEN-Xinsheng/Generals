@@ -76,9 +76,11 @@ Player                        current_player;       // 当前玩家
 Position                      cursor;               // 当前光标位置
 Cursor_type                   cursor_type;          // 光标所处模式：选择模式(0x)，行棋模式(1x)
 logic    [LOG2_MAX_ROUND: 0]  round;                // 当前回合（从 1 开始）
+Player                        winner;               // 胜者
+
 
 // 游戏常数：玩家顺序表
-Player  next_player_table [MAX_PLAYER_CNT - 1:0];  // 每个玩家的下一玩家
+Player  next_player_table [MAX_PLAYER_CNT - 1:0];   // 每个玩家的下一玩家
 initial begin
     next_player_table[RED]  = BLUE;
     next_player_table[BLUE] = RED;
@@ -114,6 +116,7 @@ initial begin
     cursor         = '{'d0, 'd7};
     cursor_type    = CHOOSE;
     round          = 'd1;               // 初始回合（从 1 开始）
+    winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
 end
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
@@ -142,51 +145,67 @@ always_ff @ (posedge clock) begin
     // 否则，本周期运行游戏逻辑
     end else begin
         keyboard_read_fin <= 'b0;
-        game_logic();
+        game_logic_top();
     end
 end
 
 
 //// [游戏逻辑部分 BEGIN]
 // 游戏逻辑部分顶层函数
-task automatic game_logic();
-    // 如果当前有尚未结算的操作，那么：结算一次操作、将光标移动到下一回合玩家的王城、将操作队列清空
+task automatic game_logic_top();
+    // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空
     if (operation != NONE) begin
-        // 判断操作是否合法
-        if (op_is_valid()) begin
-            // 如果合法，执行一次操作
-           do_op();
-        end
-        // 操作执行完成，将光标移动到下一回合玩家的王城，光标模式设置为选择模式
-        current_player <=            next_player_table[current_player] ;
-        cursor         <= crowns_pos[next_player_table[current_player]];
-        cursor_type    <= CHOOSE;
-        //// TODO 维护 round 
+        casez (cursor_type)
+            CHOOSE: 
+                // 判断操作是否合法
+                if (choose_is_valid()) begin
+                    // 如果合法，执行一次操作
+                    do_choose();
+                end
+            MOVE_HALF || MOVE_TOTAL: begin
+                // 判断操作是否合法
+                if (move_is_valid()) begin
+                    // 如果合法，执行一次操作
+                    do_move();
+                end
+                // 胜负判断
+                if (check_win()) begin
+                    // 如果已分出胜负，那么标记游戏结束
+                    game_over();
+                end else begin
+                    // 如果未分出胜负，回合切换
+                    round_switch();
+                end
+
+            end
+            default:
+                // assert 这种情况不应出现
+        endcase
         // 标记当前操作队列为空
         operation <= NONE;
     end
 endtask
 
 // 判断操作是否合法
-function automatic logic op_is_valid();
-    casez (cursor_type)
-        CHOOSE: 
-            return op_choose_is_valid();
-        MOVE_HALF: begin
+// function automatic logic op_is_valid();
+//     casez (cursor_type)
+//         CHOOSE: 
+//             return choose_is_valid();
+//         MOVE_HALF: begin
 
-            return 'b1;
-        end
-        MOVE_TOTAL: begin
+//             return 'b1;
+//         end
+//         MOVE_TOTAL: begin
 
-            return 'b1;
-        end
-        default:
-            return 'b0;   // assert 这种情况不应出现
-    endcase
-endfunction
+//             return 'b1;
+//         end
+//         default:
+//             return 'b0;   // assert 这种情况不应出现
+//     endcase
+// endfunction
 
 // 判断操作是否合法：当前光标为选择模式
-function automatic logic op_choose_is_valid();
+function automatic logic choose_is_valid();
     casez (operation)
         W: begin
             
@@ -209,8 +228,64 @@ function automatic logic op_choose_is_valid();
     endcase
 endfunction
 
-// 执行一次操作
-task automatic do_op();
+// 判断操作是否合法：当前光标为行棋模式
+function automatic logic move_is_valid();
+    casez (operation)
+        W: begin
+            
+        end
+        A: begin
+            
+        end
+        S: begin
+            
+        end
+        D: begin
+        
+        end
+        Z: 
+            return 'b1;  // 行棋模式下可以切换“全移/半移”
+        SPACE:
+            return 'b1;  // 从行棋模式切换到选择模式是合法的
+        default: 
+            return 'b0;  // assert 这种情况不应出现
+    endcase
+endfunction
+
+// 执行一次操作：当前光标为选择模式
+task automatic do_choose();
+   
+endtask
+
+// 执行一次操作：当前光标为行棋模式
+task automatic do_move();
+   
+endtask 
+
+// 回合切换
+task automatic round_switch();
+    // 操作执行完成后
+    // 将光标移动到下一回合玩家的王城
+    current_player <=            next_player_table[current_player] ;
+    cursor         <= crowns_pos[next_player_table[current_player]];
+    // 光标模式设置为选择模式
+    cursor_type    <= CHOOSE;
+    // TODO 维护 round
+
+    // TODO 如果 round 达到特定值，增加兵力
+
+    // TODO 重启计时器
+endtask
+
+// 胜负判断
+function automatic logic check_win();
+    // 进行胜负判断，如果已分出胜负，记录胜者
+
+endfunction
+
+// 游戏结束
+task automatic game_over();
+    // （此时已经分出胜负）切换游戏状态到结束状态
    
 endtask 
 
