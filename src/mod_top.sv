@@ -208,6 +208,7 @@ Game_Player #(
         .piece_type_o_test     (piece_type_o_test),
         .current_player_o_test (current_player_o_test),
         .next_player_o_test    (next_player_o_test),
+        .cursor_type_o_test    (cursor_type_o_test),
         //// [TEST END]
 
         //// input
