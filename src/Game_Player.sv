@@ -318,17 +318,9 @@ logic [7:0] cur_v;//从像素坐标转换到数组v坐标
 logic [7:0] cur_h;//从像素坐标转换到数组h坐标
 logic is_gen;
 assign address = vdata_to_ram*50 + hdata_to_ram;
-//assign ramdata = bluecrown_ramdata;
 always_comb begin
-    // if ((hdata==51 || hdata==99 || hdata==101 || hdata==149 || hdata==151 || hdata==199|| hdata==201 
-    // || hdata==249 || hdata==251 || hdata==299 || hdata==301 || hdata==349 || hdata==351 || hdata==399 
-    // || hdata== 401 || hdata==449 || hdata==451 || hdata==499 || hdata==501 || hdata == 549
-    // || vdata==51 || vdata==99 || vdata==101 || vdata==149 || vdata==151 || vdata==199|| vdata==201 
-    // || vdata==249 || vdata==251 || vdata==299 || vdata==301 || vdata==349 || vdata==351 || vdata==399 
-    // || vdata== 401 || vdata==449 || vdata==451 || vdata==499 || vdata==501 || vdata == 549)
-    if((hdata == 151 || hdata == 199 || vdata == 151 || vdata==199)
-    &&(vdata<=199 && vdata>=151 && hdata<=199 && hdata>=151)) begin
-    //(vdata<=550 && vdata>=50 && hdata<=550 && hdata>=50)) begin
+    if((hdata == 50*(cursor.h+1)+1 || hdata == 50*(cursor.h+1)+49 || vdata == 50*(cursor.v+1)+1 || vdata==50*(cursor.v+1)+49)
+    &&(vdata<=50*(cursor.v+1)+49 && vdata>=50*(cursor.v+1)+1 && hdata<=50*(cursor.h+1)+49 && hdata>=50*(cursor.h+1)+1)) begin
         gen_red = 255;
         gen_green = 255;
         gen_blue = 255;
@@ -346,6 +338,7 @@ end
 always_comb begin
     if (hdata>=0 && hdata<50) begin
         hdata_to_ram = hdata;
+        cur_h = 0;
     end else if (hdata>=50 && hdata<100) begin
         hdata_to_ram = hdata - 50;
         cur_h = 0;
@@ -378,11 +371,13 @@ always_comb begin
         cur_h = 9;
     end else begin
         hdata_to_ram = 0;
+        cur_h = 0;
     end
 end
 always_comb begin
     if (vdata>=0 && vdata<50) begin
         vdata_to_ram = vdata;
+        cur_v = 0;
     end else if (vdata>=50 && vdata<100) begin
         vdata_to_ram = vdata - 50;
         cur_v = 0;
@@ -415,6 +410,7 @@ always_comb begin
         cur_v = 9;
     end else begin
         vdata_to_ram = 0;
+        cur_v = 0;
     end
 end
 always_comb begin
@@ -423,22 +419,22 @@ always_comb begin
         ramdata = 0;
     end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == MOUNTAIN) begin
         is_gen = 1;
-        ramdata = ram_mountain;
+        ramdata = mountain_ramdata;
     end else if (cells[cur_h][cur_v].owner == NPC && cells[cur_h][cur_v].piece_type == CITY) begin
         is_gen = 1;
-        ramdata = ram_neutralcity;
+        ramdata = neutralcity_ramdata;
     end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CITY) begin
         is_gen = 1;
-        ramdata = ram_redcity;
+        ramdata = redcity_ramdata;
     end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CROWN) begin
         is_gen = 1;
-        ramdata = ram_redcrown;
+        ramdata = redcrown_ramdata;
     end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CITY) begin
         is_gen = 1;
-        ramdata = ram_bluecity;
+        ramdata = bluecity_ramdata;
     end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CROWN) begin
         is_gen = 1;
-        ramdata = ram_bluecrown;
+        ramdata = bluecrown_ramdata;
     end else begin
         is_gen = 0;
         ramdata = 0;
@@ -490,8 +486,10 @@ ram_mountain ram_mountain_test (
 always_comb begin
     if (hdata == 50 || hdata==100 || hdata==150 || hdata == 200|| hdata == 250 || hdata==300 || hdata==350 || hdata == 400 || hdata==450 || hdata==500 || hdata==550 || vdata == 50 || vdata==100 || vdata==150 || vdata == 200 || vdata == 250 || vdata==300 || vdata==350 || vdata == 400 || vdata==450 || vdata==500 || vdata==550) begin
         use_gen = 0;
-    end else begin
+    end else if (is_gen) begin
         use_gen = 1;
+    end else begin
+        use_gen = 0;
     end
 end
 //// [游戏显示部分 END]
