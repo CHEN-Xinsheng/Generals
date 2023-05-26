@@ -129,6 +129,7 @@ logic [LOG2_MAX_PLAYER_CNT - 1:0] owner_o_test;            // 当前格归属方
 logic [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test;       // 当前格棋子类型
 logic [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test;   // 当前回合玩家
 logic [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test;      // 下一回合玩家
+logic [1: 0]                      cursor_type_o_test;      // 当前光标类型
 
 assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
 assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
@@ -136,7 +137,8 @@ assign number[23:16] = troop_o_test[7:0];     // 3-4 当前格兵力
 assign number[15:12] = owner_o_test;          // 5   当前格归属方
 assign number[11: 8] = piece_type_o_test;     // 6   当前格棋子类型
 assign number[ 7: 4] = current_player_o_test; // 7   当前回合玩家
-assign number[ 3: 0] = next_player_o_test;    // 8   下一回合玩家
+assign number[ 3: 0] = cursor_type_o_test;    // 8   当前光标类型
+// assign number[ 3: 0] = next_player_o_test;    // 8   下一回合玩家
 // [TEST END]
 
 
