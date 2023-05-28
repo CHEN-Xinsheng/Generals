@@ -82,33 +82,48 @@ module mod_top (
 );
 
 /* =========== Demo code begin =========== */
-wire clk_in = clk_100m;
+wire clk_100M = clk_100m;
 
 // PLL 分频演示，从输入产生不同频率的时钟
+wire clk_50M;
 wire clk_vga;
 ip_pll u_ip_pll(
-    .inclk0 (clk_in  ),
-    .c0     (clk_vga )  // 50MHz 像素时钟
+    .inclk0 (clk_100M),
+    .c0     (clk_50M ),  // 50MHz 像素时钟
+    .c1     (clk_vga )   // 25MHz 像素时钟
 );
 
 // 七段数码管扫描演示
 reg [31: 0] number;
 dpy_scan u_dpy_scan (
-    .clk     (clk_in      ),
+    .clk     (clk_100M    ),
     .number  (number      ),
     .dp      (7'b0        ),
     .digit   (dpy_digit   ),
     .segment (dpy_segment )
 );
 
-// 参数设定
+//// 参数设定
+// 游戏逻辑相关
 parameter BORAD_WIDTH         = 10;  // 棋盘宽度
-parameter LOG2_BORAD_WIDTH    = 4;   // 棋盘宽度对 2 取对数（向上取整）
-parameter LOG2_PLAYER_CNT     = 3;   // 玩家数量对 2 取对数（向上取整）
+parameter LOG2_BORAD_WIDTH    = $clog2(BORAD_WIDTH);   // 棋盘宽度对 2 取对数（向上取整）
+parameter MAX_PLAYER_CNT      = 7;   // 玩家数量
+parameter LOG2_MAX_PLAYER_CNT = $clog2(MAX_PLAYER_CNT + 1);   // 玩家数量对 2 取对数（向上取整）
 parameter LOG2_PIECE_TYPE_CNT = 2;   // 棋子种类数量对 2 取对数（向上取整）
 parameter LOG2_MAX_TROOP      = 9;   // 格子最大兵力数对 2 取对数（向上取整）
 parameter LOG2_MAX_ROUND      = 12;  // 允许的最大回合数对 2 取对数（向上取整）
-
+// vga 相关
+parameter VGA_WIDTH = 10;
+parameter HSIZE     = 640;
+parameter HFP       = 688;
+parameter HSP       = 784;
+parameter HMAX      = 800;
+parameter VSIZE     = 480;
+parameter VFP       = 490;
+parameter VSP       = 492;
+parameter VMAX      = 525;
+parameter HSPP      = 1;
+parameter VSPP      = 1;
 
 
 // // [TEST BEGIN] 测试键盘处理模块的输出
@@ -124,9 +139,11 @@ parameter LOG2_MAX_ROUND      = 12;  // 允许的最大回合数对 2 取对数�
 logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_h_o_test;         // 当前光标位置的横坐标（h 坐标）
 logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_v_o_test;         // 当前光标位置的纵坐标（v 坐标）
 logic [LOG2_MAX_TROOP - 1: 0]     troop_o_test;            // 当前格兵力
-logic [LOG2_PLAYER_CNT - 1:0]     owner_o_test;            // 当前格归属方
+logic [LOG2_MAX_PLAYER_CNT - 1:0] owner_o_test;            // 当前格归属方
 logic [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test;       // 当前格棋子类型
-logic [LOG2_PLAYER_CNT - 1:0]     current_player_o_test;   // 当前回合玩家，正常情况下应与当前格归属方一致
+logic [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test;   // 当前回合玩家
+logic [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test;      // 下一回合玩家
+logic [1: 0]                      cursor_type_o_test;      // 当前光标类型
 
 assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
 assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
@@ -134,13 +151,14 @@ assign number[23:16] = troop_o_test[7:0];     // 3-4 当前格兵力
 assign number[15:12] = owner_o_test;          // 5   当前格归属方
 assign number[11: 8] = piece_type_o_test;     // 6   当前格棋子类型
 assign number[ 7: 4] = current_player_o_test; // 7   当前回合玩家
+assign number[ 3: 0] = cursor_type_o_test;    // 8   当前光标类型
+// assign number[ 3: 0] = next_player_o_test;    // 8   下一回合玩家
 // [TEST END]
-
 
 
 // // 自增计数器，用于数码管演示
 // reg [31: 0] counter;
-// always @(posedge clk_in or posedge reset_btn) begin
+// always @(posedge clk_100M or posedge reset_btn) begin
 //     if (reset_btn) begin
 // 	     counter <= 32'b0;
 // 		  number <= 32'b0;
@@ -158,13 +176,14 @@ assign leds[15:0] = number[15:0];
 assign leds[31:16] = ~(dip_sw);
 
 
+
 // 键盘输入处理模块
 logic        keyboard_ready;        // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
 logic        keyboard_read_fin;     // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
 logic [2: 0] keyboard_data;
 Keyboard_Decoder keyboard_decoder (
     //// input 
-    .clock      (clk_in),
+    .clock      (clk_100M),
     .reset      (reset_btn),
     .ps2_clock  (ps2_clock),
     .ps2_data   (ps2_data),
@@ -179,17 +198,18 @@ Keyboard_Decoder keyboard_decoder (
 
 
 // 游戏逻辑与显示模块
-wire [11:0] hdata;    // 当前横坐标
-wire [11:0] vdata;    // 当前纵坐标
-wire [7:0]  gen_red;  // 游戏逻辑部分生成的图像
-wire [7:0]  gen_green;
-wire [7:0]  gen_blue;
-wire        use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
+wire [VGA_WIDTH - 1:0] hdata;    // 当前横坐标
+wire [VGA_WIDTH - 1:0] vdata;    // 当前纵坐标
+wire [7:0]             gen_red;  // 游戏逻辑部分生成的图像
+wire [7:0]             gen_green;
+wire [7:0]             gen_blue;
+wire                   use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 Game_Player #(
-        .VGA_WIDTH             (12),
+        .VGA_WIDTH             (VGA_WIDTH),
         .BORAD_WIDTH           (BORAD_WIDTH), 
-        .LOG2_BORAD_WIDTH      (LOG2_BORAD_WIDTH), 
-        .LOG2_PLAYER_CNT       (LOG2_PLAYER_CNT), 
+        .LOG2_BORAD_WIDTH      (LOG2_BORAD_WIDTH),
+        .MAX_PLAYER_CNT        (MAX_PLAYER_CNT),
+        .LOG2_MAX_PLAYER_CNT   (LOG2_MAX_PLAYER_CNT), 
         .LOG2_PIECE_TYPE_CNT   (LOG2_PIECE_TYPE_CNT), 
         .LOG2_MAX_TROOP        (LOG2_MAX_TROOP), 
         .LOG2_MAX_ROUND        (LOG2_MAX_ROUND)
@@ -201,11 +221,13 @@ Game_Player #(
         .owner_o_test          (owner_o_test),
         .piece_type_o_test     (piece_type_o_test),
         .current_player_o_test (current_player_o_test),
+        .next_player_o_test    (next_player_o_test),
+        .cursor_type_o_test    (cursor_type_o_test),
         //// [TEST END]
 
         //// input
         // 时钟信号和重置信号
-        .clock             (clk_in),
+        .clk_100M          (clk_100M),
         .reset             (reset_btn),
         .clk_vga           (clk_vga),
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
@@ -222,34 +244,46 @@ Game_Player #(
         .gen_red           (gen_red),
         .gen_green         (gen_green),
         .gen_blue          (gen_blue),
-        .use_gen           (use_gen),
+        .use_gen           (use_gen)
 );
 
 
 // 显示控制模块
-Pixel_Controller #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) pixel_controller (
-    //// input 
-    // 时钟、复位
-    .clk_vga       (clk_vga),       // vga 输入时钟 (50M)
-    .reset_n       (reset_n),       // 上电复位信号，低有效
-    // 游戏逻辑生成的图像
-    .gen_red       (gen_red),
-    .gen_green     (gen_green),
-    .gen_blue      (gen_blue),
-    .use_gen       (use_gen),
-    
-    //// output
-    // 生成当前横纵坐标
-    .hdata_o       (hdata),
-    .vdata_o       (vdata),
-    // 以下输出直接接到 mod_top 的对应输出
-    .video_red_O   (video_red),
-    .video_green_O (video_green),
-    .video_blue_O  (video_blue),
-    .video_hsync_O (video_hsync),
-    .video_vsync_O (video_vsync),
-    .video_clk_O   (video_clk),
-    .video_de_O    (video_de)
+Pixel_Controller #(
+        .VGA_WIDTH  (VGA_WIDTH),
+        .HSIZE      (HSIZE),
+        .HFP        (HFP),
+        .HSP        (HSP),
+        .HMAX       (HMAX),
+        .VSIZE      (VSIZE),
+        .VFP        (VFP),
+        .VSP        (VSP),
+        .VMAX       (VMAX),
+        .HSPP       (HSPP),
+        .VSPP       (VSPP)
+    ) pixel_controller (
+        //// input 
+        // 时钟、复位
+        .clk_vga       (clk_vga),       // vga 输入时钟 (25M)
+        .reset_n       (reset_n),       // 上电复位信号，低有效
+        // 游戏逻辑生成的图像
+        .gen_red       (gen_red),
+        .gen_green     (gen_green),
+        .gen_blue      (gen_blue),
+        .use_gen       (use_gen),
+        
+        //// output
+        // 生成当前横纵坐标
+        .hdata_o       (hdata),
+        .vdata_o       (vdata),
+        // 以下输出直接接到 mod_top 的对应输出
+        .video_red_O   (video_red),
+        .video_green_O (video_green),
+        .video_blue_O  (video_blue),
+        .video_hsync_O (video_hsync),
+        .video_vsync_O (video_vsync),
+        .video_clk_O   (video_clk),
+        .video_de_O    (video_de)
 );
 
 // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
