@@ -3,8 +3,7 @@ module Pixel_Controller
 (
     // 时钟、复位
     input  wire clk_vga,             // vga 输入时钟 (50M)
-    input  wire reset_n,             // 上电复位信号，低有效
-
+    input  wire reset_n,             // 上电复位信号，低有效         
     // 游戏逻辑生成的图像
     input  wire [7: 0] gen_red,
     input  wire [7: 0] gen_green,
@@ -43,7 +42,7 @@ logic [7: 0] background_blue;
 
 
 // vga 模块
-vga #(WIDTH, HSIZE, HFP, HSP, HMAX, VSIZE, VFP, VSP, VMAX, HSPP, VSPP) vga800x600at75 (
+vga #(WIDTH, HSIZE, HFP, HSP, HMAX, VSIZE, VFP, VSP, VMAX, HSPP, VSPP) vga640x480at60 (
     // input
     .clk          (clk_vga),
     // output 
@@ -57,6 +56,7 @@ vga #(WIDTH, HSIZE, HFP, HSP, HMAX, VSIZE, VFP, VSP, VMAX, HSPP, VSPP) vga800x60
 // 背景图绘制模块
 Background_Painter background_painter (
     // input
+    .clk          (clock),
     .hdata        (hdata),
     .vdata        (vdata),
     // output
@@ -65,17 +65,24 @@ Background_Painter background_painter (
     .video_blue   (background_blue)
 );
 
+
 // 图层选择
 always_comb begin
     if (use_gen) begin
         video_red_O   = gen_red;
         video_green_O = gen_green;
         video_blue_O  = gen_blue;
+        // video_red_O   = background_red;
+        // video_green_O = background_green;
+        // video_blue_O  = background_blue;
     end else begin
         video_red_O   = background_red;
         video_green_O = background_green;
         video_blue_O  = background_blue;
     end
 end
+// assign video_red_O   = background_red;
+// assign video_green_O = background_green;
+// assign video_blue_O  = background_blue;
 
 endmodule

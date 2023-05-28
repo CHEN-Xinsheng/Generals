@@ -4,7 +4,7 @@
 // MODULE: altsyncram 
 
 // ============================================================
-// File Name: ram_redcity.v
+// File Name: ram_number1.v
 // Megafunction Name(s):
 // 			altsyncram
 //
@@ -37,7 +37,7 @@
 // synopsys translate_off
 `timescale 1 ps / 1 ps
 // synopsys translate_on
-module ram_redcity (
+module ram_number1 (
 	address,
 	clock,
 	data,
@@ -87,7 +87,7 @@ module ram_redcity (
 	defparam
 		altsyncram_component.clock_enable_input_a = "BYPASS",
 		altsyncram_component.clock_enable_output_a = "BYPASS",
-		altsyncram_component.init_file = "./media/redcity.mif",
+		altsyncram_component.init_file = "./media/1.mif",
 		altsyncram_component.intended_device_family = "Cyclone IV E",
 		altsyncram_component.lpm_hint = "ENABLE_RUNTIME_MOD=NO",
 		altsyncram_component.lpm_type = "altsyncram",
@@ -126,7 +126,7 @@ endmodule
 // Retrieval info: PRIVATE: JTAG_ENABLED NUMERIC "0"
 // Retrieval info: PRIVATE: JTAG_ID STRING "NONE"
 // Retrieval info: PRIVATE: MAXIMUM_DEPTH NUMERIC "0"
-// Retrieval info: PRIVATE: MIFfilename STRING "./media/redcity.mif"
+// Retrieval info: PRIVATE: MIFfilename STRING "./media/1.mif"
 // Retrieval info: PRIVATE: NUMWORDS_A NUMERIC "4096"
 // Retrieval info: PRIVATE: RAM_BLOCK_TYPE NUMERIC "0"
 // Retrieval info: PRIVATE: READ_DURING_WRITE_MODE_PORT_A NUMERIC "3"
@@ -143,7 +143,7 @@ endmodule
 // Retrieval info: LIBRARY: altera_mf altera_mf.altera_mf_components.all
 // Retrieval info: CONSTANT: CLOCK_ENABLE_INPUT_A STRING "BYPASS"
 // Retrieval info: CONSTANT: CLOCK_ENABLE_OUTPUT_A STRING "BYPASS"
-// Retrieval info: CONSTANT: INIT_FILE STRING "./media/redcity.mif"
+// Retrieval info: CONSTANT: INIT_FILE STRING "./media/1.mif"
 // Retrieval info: CONSTANT: INTENDED_DEVICE_FAMILY STRING "Cyclone IV E"
 // Retrieval info: CONSTANT: LPM_HINT STRING "ENABLE_RUNTIME_MOD=NO"
 // Retrieval info: CONSTANT: LPM_TYPE STRING "altsyncram"
@@ -166,10 +166,10 @@ endmodule
 // Retrieval info: CONNECT: @data_a 0 0 32 0 data 0 0 32 0
 // Retrieval info: CONNECT: @wren_a 0 0 0 0 wren 0 0 0 0
 // Retrieval info: CONNECT: q 0 0 32 0 @q_a 0 0 32 0
-// Retrieval info: GEN_FILE: TYPE_NORMAL ram_redcity.v TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ram_redcity.inc FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ram_redcity.cmp FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ram_redcity.bsf FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ram_redcity_inst.v FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL ram_redcity_bb.v TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ram_number1.v TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ram_number1.inc FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ram_number1.cmp FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ram_number1.bsf FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ram_number1_inst.v FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL ram_number1_bb.v TRUE
 // Retrieval info: LIB_FILE: altera_mf

@@ -83,12 +83,13 @@ module mod_top (
 
 /* =========== Demo code begin =========== */
 wire clk_in = clk_100m;
-
+wire clk_50M;
 // PLL 分频演示，从输入产生不同频率的时钟
 wire clk_vga;
 ip_pll u_ip_pll(
     .inclk0 (clk_in  ),
-    .c0     (clk_vga )  // 50MHz 像素时钟
+    .c0     (clk_50M ),  // 50MHz 像素时钟
+    .c1     (clk_vga )   // 25MHz 像素时钟
 );
 
 // 七段数码管扫描演示
@@ -184,14 +185,14 @@ Keyboard_Decoder keyboard_decoder (
 
 
 // 游戏逻辑与显示模块
-wire [11:0] hdata;    // 当前横坐标
-wire [11:0] vdata;    // 当前纵坐标
+wire [9:0] hdata;    // 当前横坐标
+wire [9:0] vdata;    // 当前纵坐标
 wire [7:0]  gen_red;  // 游戏逻辑部分生成的图像
 wire [7:0]  gen_green;
 wire [7:0]  gen_blue;
 wire        use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 Game_Player #(
-        .VGA_WIDTH             (12),
+        .VGA_WIDTH             (10),
         .BORAD_WIDTH           (BORAD_WIDTH), 
         .LOG2_BORAD_WIDTH      (LOG2_BORAD_WIDTH),
         .MAX_PLAYER_CNT        (MAX_PLAYER_CNT),
@@ -213,7 +214,7 @@ Game_Player #(
 
         //// input
         // 时钟信号和重置信号
-        .clock             (clk_in),
+        .clock             (clk_100m),
         .reset             (reset_btn),
         .clk_vga           (clk_vga),
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
@@ -235,10 +236,10 @@ Game_Player #(
 
 
 // 显示控制模块
-Pixel_Controller #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) pixel_controller (
+Pixel_Controller #(10, 640, 688, 784, 800, 480, 490, 492, 525, 1, 1) pixel_controller (
     //// input 
     // 时钟、复位
-    .clk_vga       (clk_vga),       // vga 输入时钟 (50M)
+    .clk_vga       (clk_vga),       // vga 输入时钟 (25M)
     .reset_n       (reset_n),       // 上电复位信号，低有效
     // 游戏逻辑生成的图像
     .gen_red       (gen_red),
@@ -259,7 +260,25 @@ Pixel_Controller #(12, 800, 856, 976, 1040, 600, 637, 643, 666, 1, 1) pixel_cont
     .video_clk_O   (video_clk),
     .video_de_O    (video_de)
 );
-
+// Background_Painter test(
+//     .clk(clk_vga),
+//     .hdata(hdata),
+//     .vdata(vdata),
+//     .video_red(video_red),
+//     .video_green(video_green),
+//     .video_blue(video_blue)
+// );
+// vga #(10, 640, 688, 784, 800, 480, 490, 492, 525, 1, 1) vga640x480at60 (
+//     // input
+//     .clk          (clk_vga),
+//     // output 
+//     .hdata        (hdata),
+//     .vdata        (vdata),
+//     .hsync        (video_hsync),
+//     .vsync        (video_vsync),
+//     .data_enable  (video_de)
+// );
+assign video_clk = clk_vga;
 // 图像输出演示，分辨率 800x600@75Hz，像素时钟为 50MHz，显示渐变色彩条
 // 生成彩条数据，分别取坐标低位作为 RGB 值
 // 警告：该图像生成方式仅供演示，请勿使用横纵坐标驱动大量逻辑！！
