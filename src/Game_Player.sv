@@ -19,7 +19,7 @@ module Game_Player
     //// [TEST END]
 
     //// input
-    input wire                    clock,
+    input wire                    clk_100M,
     input wire                    reset,
     input wire                    clk_vga,
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
@@ -142,7 +142,7 @@ assign cursor_type_o_test    = cursor_type;                                // �
 
 
 //// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
-always_ff @ (posedge clock) begin
+always_ff @ (posedge clk_100M) begin
     // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
     if (keyboard_ready) begin
         // 缓存一次未结算的操作
@@ -494,56 +494,56 @@ end
 
 // ram_white ram_white (
 //     .address(address),
-//     .clock(clock),
+//     .clock(clk_100M),
 //     .data(indata),
 //     .wren(0),
 //     .q(white_ramdata)
 // );    
 ram_bluecity ram_bluecity_test (
     .address(address),
-    .clock(clock),
+    .clock(clk_100M),
     .data(indata),
     .wren(0),
     .q(bluecity_ramdata)  
 );
 ram_number1 ram_number1_test (
     .address(address),
-    .clock(clock),
+    .clock(clk_100M),
     .data(indata),
     .wren(0),
     .q(number1_ramdata)  
 );
 ram_bluecrown ram_bluecrown_test (
     .address(address),
-    .clock(clock),
+    .clock(clk_100M),
     .data(indata),
     .wren(0),
     .q(bluecrown_ramdata)
 );
 ram_redcity ram_redcity_test (
     .address(address),
-    .clock(clock),
+    .clock(clk_100M),
     .data(indata),
     .wren(0),
     .q(redcity_ramdata)
 );
 ram_redcrown ram_redcrown_test (
     .address(address),
-    .clock(clock),
+    .clock(clk_100M),
     .data(indata),
     .wren(0),
     .q(redcrown_ramdata)
 );
 ram_neutralcity ram_neutralcity_test (
     .address(address),
-    .clock(clock),
+    .clock(clk_100M),
     .data(indata),
     .wren(0),
     .q(neutralcity_ramdata)
 );
 ram_mountain ram_mountain_test (
     .address(address),
-    .clock(clock),
+    .clock(clk_100M),
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)

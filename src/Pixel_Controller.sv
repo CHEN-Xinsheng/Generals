@@ -1,9 +1,9 @@
 module Pixel_Controller
-#(parameter WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0)
+#(parameter VGA_WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0)
 (
     // 时钟、复位
-    input  wire clk_vga,             // vga 输入时钟 (50M)
-    input  wire reset_n,             // 上电复位信号，低有效         
+    input  wire clk_vga,             // vga 输入时钟 (25M)
+    input  wire reset_n,             // 上电复位信号，低有效
     // 游戏逻辑生成的图像
     input  wire [7: 0] gen_red,
     input  wire [7: 0] gen_green,
@@ -11,8 +11,8 @@ module Pixel_Controller
     input  wire        use_gen,      // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 
     // 当前横纵坐标
-    output wire [WIDTH - 1: 0] hdata_o,
-    output wire [WIDTH - 1: 0] vdata_o,
+    output wire [VGA_WIDTH - 1: 0] hdata_o,
+    output wire [VGA_WIDTH - 1: 0] vdata_o,
 
     // HDMI 图像输出
     // '_O' 后缀表示该输出将直接接到 mod_top 的对应输出
@@ -29,8 +29,8 @@ module Pixel_Controller
 assign video_clk_O = clk_vga;
 
 // 当前横纵坐标
-logic [WIDTH - 1: 0] hdata;
-logic [WIDTH - 1: 0] vdata;
+logic [VGA_WIDTH - 1: 0] hdata;
+logic [VGA_WIDTH - 1: 0] vdata;
 assign hdata_o = hdata;
 assign vdata_o = vdata;
 
@@ -42,27 +42,40 @@ logic [7: 0] background_blue;
 
 
 // vga 模块
-vga #(WIDTH, HSIZE, HFP, HSP, HMAX, VSIZE, VFP, VSP, VMAX, HSPP, VSPP) vga640x480at60 (
-    // input
-    .clk          (clk_vga),
-    // output 
-    .hdata        (hdata),
-    .vdata        (vdata),
-    .hsync        (video_hsync_O),
-    .vsync        (video_vsync_O),
-    .data_enable  (video_de_O)
+vga #(
+        .WIDTH  (VGA_WIDTH),
+        .HSIZE  (HSIZE),
+        .HFP    (HFP),
+        .HSP    (HSP),
+        .HMAX   (HMAX),
+        .VSIZE  (VSIZE),
+        .VFP    (VFP),
+        .VSP    (VSP),
+        .VMAX   (VMAX),
+        .HSPP   (HSPP),
+        .VSPP   (VSPP)
+    ) vga640x480at60 (
+        // input
+        .clk          (clk_vga),
+        // output 
+        .hdata        (hdata),
+        .vdata        (vdata),
+        .hsync        (video_hsync_O),
+        .vsync        (video_vsync_O),
+        .data_enable  (video_de_O)
 );
 
 // 背景图绘制模块
-Background_Painter background_painter (
-    // input
-    .clk          (clock),
-    .hdata        (hdata),
-    .vdata        (vdata),
-    // output
-    .video_red    (background_red),
-    .video_green  (background_green),
-    .video_blue   (background_blue)
+Background_Painter #(
+        .VGA_WIDTH    (VGA_WIDTH)
+    ) background_painter (
+        // input
+        .hdata        (hdata),
+        .vdata        (vdata),
+        // output
+        .video_red    (background_red),
+        .video_green  (background_green),
+        .video_blue   (background_blue)
 );
 
 
@@ -72,17 +85,11 @@ always_comb begin
         video_red_O   = gen_red;
         video_green_O = gen_green;
         video_blue_O  = gen_blue;
-        // video_red_O   = background_red;
-        // video_green_O = background_green;
-        // video_blue_O  = background_blue;
     end else begin
         video_red_O   = background_red;
         video_green_O = background_green;
         video_blue_O  = background_blue;
     end
 end
-// assign video_red_O   = background_red;
-// assign video_green_O = background_green;
-// assign video_blue_O  = background_blue;
 
 endmodule
