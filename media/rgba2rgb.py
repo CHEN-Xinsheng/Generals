@@ -1,6 +1,6 @@
 from PIL import Image  
 import numpy as np  
-Image = Image.open('city.png')   
+Image = Image.open('1.png')   
 Image_array = np.array(Image) 
 print(Image_array.shape)
 from pprint import pprint
@@ -8,11 +8,11 @@ pprint(Image_array.tolist())
 import matplotlib.pyplot as pyplot
  
 contents = []
-for i in range(50):
-    for j in range(50):
+for i in range(40):
+    for j in range(40):
         for k in range(4):
             contents.append(int(Image_array[i][j][k]))
-with open('neutralcity.mif', 'w') as wf:
+with open('1.mif', 'w') as wf:
     print('WIDTH = 32;', file=wf)
     print('DEPTH = 6400;', file=wf)
     print('ADDRESS_RADIX = HEX;', file=wf)
