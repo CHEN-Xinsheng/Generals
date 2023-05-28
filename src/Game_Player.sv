@@ -166,101 +166,76 @@ task automatic game_logic_top();
     if (operation != NONE) begin
         casez (cursor_type)
             CHOOSE: begin
-                // 判断并执行一次操作（若合法）
-                do_with_cursor_type_choose();
+                casez (operation)
+                    W: // 上移
+                        if (cursor.v >= 1)                cursor.v <= cursor.v - 1;
+                    A: // 左移
+                        if (cursor.h >= 1)                cursor.h <= cursor.h - 1;
+                    S: // 下移
+                        if (cursor.v <= BORAD_WIDTH - 2)  cursor.v <= cursor.v + 1;
+                    D: // 右移
+                        if (cursor.h <= BORAD_WIDTH - 2)  cursor.h <= cursor.h + 1;
+                    Z: ;  // 选择模式下无法切换“全移/半移”
+                    SPACE: // 切换“选择模式/行棋模式”
+                        if (cells[cursor.h][cursor.v].owner == current_player && 
+                            cells[cursor.h][cursor.v].troop >= 2)
+                            cursor_type <= MOVE_TOTAL;  // 如果当前格子属于操作方，且兵力至少是 2，从选择模式切换到行棋模式是合法的
+                    default: ; // assert 这种情况不应出现
+                endcase
             end
             MOVE_HALF || MOVE_TOTAL: begin
-                // 判断并执行一次操作（若合法）
-                do_with_cursor_type_move();
-                // 如果当前操作是行棋，还需进行胜负判断
-                if (operation == W || operation == A || operation == S || operation == D) begin
-                    // 胜负判断
-                    if (check_win()) begin
-                        // 如果已分出胜负，那么标记游戏结束
-                        game_over();
-                    end else begin
-                        // 如果未分出胜负，回合切换
-                        round_switch();
-                    end
-                end
+                casez (operation)
+                    // 如果当前操作是切换光标模式
+                    Z: // 切换“全移/半移”
+                        casez(cursor_type)
+                            MOVE_HALF:  cursor_type <= MOVE_TOTAL;
+                            MOVE_TOTAL: cursor_type <= MOVE_HALF;
+                            default:    cursor_type <= MOVE_TOTAL;  // assert 这种情况不应出现
+                        endcase
+                    SPACE: // 切换“选择模式/行棋模式”
+                        cursor_type <= CHOOSE;
+                    // 如果当前操作是行棋：
+                    // 如果操作合法（在 move_piece_to 中判断），走一步棋并进行胜负判断；否则不做响应
+                    W: // 上移
+                        if (cursor.v >= 1)
+                            move_piece_to('{cursor.h,     cursor.v - 1});
+                    A: // 左移
+                        if (cursor.h >= 1)
+                            move_piece_to('{cursor.h - 1, cursor.v    });
+                    S: // 下移
+                        if (cursor.v <= BORAD_WIDTH - 2)
+                            move_piece_to('{cursor.h,     cursor.v + 1});
+                    D: // 右移
+                        if (cursor.h <= BORAD_WIDTH - 2)
+                            move_piece_to('{cursor.h + 1, cursor.v    });
+                        // // 如果操作合法，胜负判断
+                        // if (check_win()) begin
+                        //     // 如果已分出胜负，那么标记游戏结束
+                        //     game_over();
+                        // end else begin
+                        //     // 如果未分出胜负，回合切换
+                        //     round_switch();
+                        // end
+                    default: ; // assert 这种情况不应出现
+                endcase
             end
-            default: begin
-                // assert 这种情况不应出现
-            end
+            default: ; // assert 这种情况不应出现
         endcase
         // 标记当前操作队列为空
         operation <= NONE;
     end
 endtask
 
-// 判断并执行一次操作：当前光标为选择模式
-task automatic do_with_cursor_type_choose();
-    casez (operation)
-        W: // 上移
-            if (cursor.v >= 1)
-                cursor.v <= cursor.v - 1;
-        A: // 左移
-            if (cursor.h >= 1)
-                cursor.h <= cursor.h - 1;
-        S: // 下移
-            if (cursor.v <= BORAD_WIDTH - 2)
-                cursor.v <= cursor.v + 1;
-        D: // 右移
-            if (cursor.h <= BORAD_WIDTH - 2)
-                cursor.h <= cursor.h + 1;
-        Z: // 切换“全移/半移”
-            ;  // 选择模式下无法切换“全移/半移”
-        SPACE: // 切换“选择模式/行棋模式”
-            if (cells[cursor.h][cursor.v].owner == current_player && 
-                cells[cursor.h][cursor.v].troop >= 2)
-                cursor_type <= MOVE_TOTAL;  // 如果当前格子属于操作方，且兵力至少是 2，从选择模式切换到行棋模式是合法的
-        default:
-            ; // assert 这种情况不应出现
-    endcase
-endtask
 
-
-// 执行一次操作：当前光标为行棋模式
-task automatic do_with_cursor_type_move();
-    // 保证当前格子属于操作方，且兵力至少是 2
-    casez (operation)
-        W: // 上移
-            if (cursor.v >= 1)
-                move_piece('{cursor.h,     cursor.v - 1});
-        A: // 左移
-            if (cursor.h >= 1)
-                move_piece('{cursor.h - 1, cursor.v    });
-        S: // 下移
-            if (cursor.v <= BORAD_WIDTH - 2)
-                move_piece('{cursor.h,     cursor.v + 1});
-        D: // 右移
-            if (cursor.h <= BORAD_WIDTH - 2)
-                move_piece('{cursor.h + 1, cursor.v    });
-        Z: // 切换“全移/半移”
-            casez(cursor_type)
-                MOVE_HALF: 
-                    cursor_type <= MOVE_TOTAL;
-                MOVE_TOTAL: 
-                    cursor_type <= MOVE_HALF;
-                default:  // assert 这种情况不应出现
-                    cursor_type <= MOVE_TOTAL;
-            endcase
-        SPACE: // 切换“选择模式/行棋模式”
-            cursor_type <= CHOOSE;
-        default:
-            ; // assert 这种情况不应出现
-    endcase
-endtask 
-
-// 执行一次行棋操作
-task automatic move_piece(Position target_pos);
+// 判断是否合法并执行一次行棋操作，然后进行胜负判断
+task automatic move_piece_to(Position target_pos);
     // 保证目标位置仍在棋盘内
     casez (cells[target_pos.h][target_pos.v].owner)
         // 如果目标位置属于 NPC
         NPC:
             casez (cells[target_pos.h][target_pos.v].piece_type)
                 // 如果目标位置是 NPC 空地或 NPC 城市
-                TERRITORY || CITY: begin
+                TERRITORY, CITY: begin
                     // 目标位置归属方、兵力更改，源位置兵力更改
                     cells[target_pos.h][target_pos.v].owner <= current_player;
                     if (cursor_type == MOVE_TOTAL) begin
@@ -316,17 +291,6 @@ task automatic game_over();
     // （此时已经分出胜负）切换游戏状态到结束状态
    
 endtask 
-
-
-/// 辅助函数
-// 判断一个位置是否在棋盘内
-function automatic logic is_in_board(Position pos);
-    if (0 <= pos.h && pos.h < BORAD_WIDTH &&
-        0 <= pos.v && pos.v < BORAD_WIDTH)
-        return 1;
-    else
-        return 0;
-endfunction
 
 
 //// [游戏逻辑部分 END]
