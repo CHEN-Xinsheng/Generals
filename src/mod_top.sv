@@ -105,13 +105,14 @@ dpy_scan u_dpy_scan (
 
 //// 参数设定
 // 游戏逻辑相关
-parameter BORAD_WIDTH         = 10;  // 棋盘宽度
-parameter LOG2_BORAD_WIDTH    = $clog2(BORAD_WIDTH);   // 棋盘宽度对 2 取对数（向上取整）
-parameter MAX_PLAYER_CNT      = 7;   // 玩家数量
-parameter LOG2_MAX_PLAYER_CNT = $clog2(MAX_PLAYER_CNT + 1);   // 玩家数量对 2 取对数（向上取整）
-parameter LOG2_PIECE_TYPE_CNT = 2;   // 棋子种类数量对 2 取对数（向上取整）
-parameter LOG2_MAX_TROOP      = 9;   // 格子最大兵力数对 2 取对数（向上取整）
-parameter LOG2_MAX_ROUND      = 12;  // 允许的最大回合数对 2 取对数（向上取整）
+parameter BORAD_WIDTH           = 10;  // 棋盘宽度
+parameter LOG2_BORAD_WIDTH      = $clog2(BORAD_WIDTH);   // 棋盘宽度对 2 取对数（向上取整）
+parameter MAX_PLAYER_CNT        = 7;   // 玩家数量
+parameter LOG2_MAX_PLAYER_CNT   = $clog2(MAX_PLAYER_CNT + 1);   // 玩家数量加上 1(NPC) 后，对 2 取对数（向上取整）
+parameter LOG2_PIECE_TYPE_CNT   = 2;   // 棋子种类数量对 2 取对数（向上取整）
+parameter LOG2_MAX_TROOP        = 9;   // 格子最大兵力数对 2 取对数（向上取整）
+parameter LOG2_MAX_ROUND        = 12;  // 允许的最大回合数对 2 取对数（向上取整）
+parameter LOG2_MAX_CURSOR_TYPE  = 2;   // 光标种类数对 2 取对数（向上取整）
 // vga 相关
 parameter VGA_WIDTH = 10;
 parameter HSIZE     = 640;
@@ -136,14 +137,15 @@ parameter VSPP      = 1;
 // // [TEST END] test keyoard
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
-logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_h_o_test;         // 当前光标位置的横坐标（h 坐标）
-logic [LOG2_BORAD_WIDTH - 1: 0]   cursor_v_o_test;         // 当前光标位置的纵坐标（v 坐标）
-logic [LOG2_MAX_TROOP - 1: 0]     troop_o_test;            // 当前格兵力
-logic [LOG2_MAX_PLAYER_CNT - 1:0] owner_o_test;            // 当前格归属方
-logic [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test;       // 当前格棋子类型
-logic [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test;   // 当前回合玩家
-logic [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test;      // 下一回合玩家
-logic [1: 0]                      cursor_type_o_test;      // 当前光标类型
+logic [LOG2_BORAD_WIDTH - 1: 0]     cursor_h_o_test;         // 当前光标位置的横坐标（h 坐标）
+logic [LOG2_BORAD_WIDTH - 1: 0]     cursor_v_o_test;         // 当前光标位置的纵坐标（v 坐标）
+logic [LOG2_MAX_TROOP - 1: 0]       troop_o_test;            // 当前格兵力
+logic [LOG2_MAX_PLAYER_CNT - 1: 0]  owner_o_test;            // 当前格归属方
+logic [LOG2_PIECE_TYPE_CNT - 1: 0]  piece_type_o_test;       // 当前格棋子类型
+logic [LOG2_MAX_PLAYER_CNT - 1: 0]  current_player_o_test;   // 当前回合玩家
+logic [LOG2_MAX_PLAYER_CNT - 1: 0]  next_player_o_test;      // 下一回合玩家
+logic [LOG2_MAX_CURSOR_TYPE -1: 0]  cursor_type_o_test;      // 当前光标类型
+logic [2: 0]                        operation_o_test;        // 当前操作队列
 
 assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
 assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
@@ -188,9 +190,10 @@ Keyboard_Decoder keyboard_decoder (
     .ps2_clock  (ps2_clock),
     .ps2_data   (ps2_data),
     .read_fin   (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
-    // [TEST BEGIN] 用手动时钟作为 逻辑模块 -> 键盘输入模块 的 表示数据已被读取的信号
+    // [TEST BEGIN] 用手动时钟作为 逻辑模块 -> 键盘输入模块 的 表示数据已被读取的信号，用于单独测试 Keyboard_Decoder
     // .read_fin   (clock_btn),
     // [TEST END]
+
     //// output
     .ready      (keyboard_ready),    // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
     .data       (keyboard_data)
@@ -212,7 +215,8 @@ Game_Player #(
         .LOG2_MAX_PLAYER_CNT   (LOG2_MAX_PLAYER_CNT), 
         .LOG2_PIECE_TYPE_CNT   (LOG2_PIECE_TYPE_CNT), 
         .LOG2_MAX_TROOP        (LOG2_MAX_TROOP), 
-        .LOG2_MAX_ROUND        (LOG2_MAX_ROUND)
+        .LOG2_MAX_ROUND        (LOG2_MAX_ROUND),
+        .LOG2_MAX_CURSOR_TYPE  (LOG2_MAX_CURSOR_TYPE)
     ) game_player (
         //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
         .cursor_h_o_test       (cursor_h_o_test),
@@ -223,11 +227,13 @@ Game_Player #(
         .current_player_o_test (current_player_o_test),
         .next_player_o_test    (next_player_o_test),
         .cursor_type_o_test    (cursor_type_o_test),
+        .operation_o_test      (operation_o_test),
         //// [TEST END]
 
         //// input
         // 时钟信号和重置信号
         .clk_100M          (clk_100M),
+        .start             (clock_btn),
         .reset             (reset_btn),
         .clk_vga           (clk_vga),
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
