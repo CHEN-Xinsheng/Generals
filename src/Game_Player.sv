@@ -1,25 +1,31 @@
 module Game_Player
-#(parameter VGA_WIDTH           = 0, 
-            BORAD_WIDTH         = 10, 
-            LOG2_BORAD_WIDTH    = 4, 
-            MAX_PLAYER_CNT      = 7, 
-            LOG2_MAX_PLAYER_CNT = 3, 
-            LOG2_PIECE_TYPE_CNT = 2, 
-            LOG2_MAX_TROOP      = 9, 
-            LOG2_MAX_ROUND      = 12) (
+#(parameter VGA_WIDTH            = 0, 
+            BORAD_WIDTH          = 10, 
+            LOG2_BORAD_WIDTH     = 4, 
+            MAX_PLAYER_CNT       = 7, 
+            LOG2_MAX_PLAYER_CNT  = 3, 
+            LOG2_PIECE_TYPE_CNT  = 2, 
+            LOG2_MAX_TROOP       = 9, 
+            LOG2_MAX_ROUND       = 12,
+            LOG2_MAX_CURSOR_TYPE = 2,
+            MAX_STEP_TIME        = 15,
+            LOG2_MAX_STEP_TIME   = 5) (
     //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
-    output wire [LOG2_BORAD_WIDTH - 1: 0]   cursor_h_o_test,         // 当前光标位置的横坐标（h 坐标）
-    output wire [LOG2_BORAD_WIDTH - 1: 0]   cursor_v_o_test,         // 当前光标位置的纵坐标（v 坐标）
-    output wire [LOG2_MAX_TROOP - 1: 0]     troop_o_test,            // 当前格兵力
-    output wire [LOG2_MAX_PLAYER_CNT - 1:0] owner_o_test,            // 当前格归属方
-    output wire [LOG2_PIECE_TYPE_CNT - 1:0] piece_type_o_test,       // 当前格棋子类型
-    output wire [LOG2_MAX_PLAYER_CNT - 1:0] current_player_o_test,   // 当前回合玩家
-    output wire [LOG2_MAX_PLAYER_CNT - 1:0] next_player_o_test,      // 下一回合玩家
-    output wire [1: 0]                      cursor_type_o_test,      // 当前光标类型
+    output wire [LOG2_BORAD_WIDTH - 1: 0]       cursor_h_o_test,         // 当前光标位置的横坐标（h 坐标）
+    output wire [LOG2_BORAD_WIDTH - 1: 0]       cursor_v_o_test,         // 当前光标位置的纵坐标（v 坐标）
+    output wire [LOG2_MAX_TROOP - 1: 0]         troop_o_test,            // 当前格兵力
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    owner_o_test,            // 当前格归属方
+    output wire [LOG2_PIECE_TYPE_CNT - 1: 0]    piece_type_o_test,       // 当前格棋子类型
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    current_player_o_test,   // 当前回合玩家
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    next_player_o_test,      // 下一回合玩家
+    output wire [LOG2_MAX_CURSOR_TYPE -1: 0]    cursor_type_o_test,      // 当前光标类型
+    output wire [2: 0]                          operation_o_test,        // 当前操作队列
+    output wire [LOG2_MAX_STEP_TIME -1: 0]      step_timer_o_test,       // 当前回合剩余时间
     //// [TEST END]
 
     //// input
-    input wire                    clk_100M,
+    input wire                    clock,
+    input wire                    start,              // 游戏开始
     input wire                    reset,
     input wire                    clk_vga,
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
@@ -37,7 +43,7 @@ module Game_Player
     output wire [7: 0]            gen_red,
     output wire [7: 0]            gen_green,
     output wire [7: 0]            gen_blue,
-    output wire                   use_gen    // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
+    output wire                   use_gen             // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 );
 
 //// [游戏内部数据 BEGIN]
@@ -58,13 +64,13 @@ typedef struct {
     logic [LOG2_BORAD_WIDTH - 1: 0]  v;         // 位置的纵坐标（v 坐标）
 } Position;
 // 光标类型
-typedef enum logic [1:0] {
+typedef enum logic [LOG2_MAX_CURSOR_TYPE - 1:0] {
     CHOOSE     = 2'b00,
     MOVE_TOTAL = 2'b10,
     MOVE_HALF  = 2'b11
 } Cursor_type;
 // 键盘操作类型
-typedef enum logic[2:0]  {
+typedef enum logic [2:0] {
     W     = 3'b000, 
     A     = 3'b001, 
     S     = 3'b010, 
@@ -73,29 +79,41 @@ typedef enum logic[2:0]  {
     Z     = 3'b101, 
     NONE  = 3'b110   // 表示没有操作
 } Operation;
+// 游戏状态
+typedef enum logic [2:0] {
+    READY,         // 游戏准备开始
+    IN_ROUND,      // 回合内
+    CHECK_WIN,     // 判断胜负
+    ROUND_SWITCH,  // 回合切换中
+    GAME_OVER      // 游戏结束
+} State;
 
 
 // 游戏数据
 Cell      cells      [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0];  // 棋盘结构体数组
 Position  crowns_pos [MAX_PLAYER_CNT - 1:0];        // 每个玩家王城的位置
 
-Operation                     operation;            // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
-Player                        current_player;       // 当前玩家
-Position                      cursor;               // 当前光标位置
-Cursor_type                   cursor_type;          // 光标所处模式：选择模式(0x)，行棋模式(1x)
-logic    [LOG2_MAX_ROUND: 0]  round;                // 当前回合（从 1 开始）
-Player                        winner;               // 胜者
+Operation                           operation;          // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
+Player                              current_player;     // 当前玩家
+Position                            cursor;             // 当前光标位置
+Cursor_type                         cursor_type;        // 光标所处模式：选择模式(0x)，行棋模式(1x)
+logic [LOG2_MAX_ROUND:     0]       step_cnt;           // 已经进行的行棋操作次数（包括超时，视为空操作）
+logic [LOG2_MAX_ROUND - 1: 0]       round;              // 当前回合（从 1 开始）
+Player                              winner;             // 胜者，该值仅当 state == GAME_OVER 时有效
+State                               state;              // 当前游戏状态
+logic [LOG2_MAX_STEP_TIME -1: 0]    step_timer;         // 当前回合剩余时间
 
+assign round = (step_cnt + 1) >> 1;
 
 // 游戏常数：玩家顺序表
 Player  next_player_table [MAX_PLAYER_CNT - 1:0];   // 每个玩家的下一玩家
 initial begin
     next_player_table[RED]  = BLUE;
     next_player_table[BLUE] = RED;
-    // default case
-    for (int i = 0; i < MAX_PLAYER_CNT; ++i) begin
+    // assert 以下情况在游戏中不应出现
+    for (byte i = 0; i < MAX_PLAYER_CNT; ++i) begin
         if (i != RED && i != BLUE) begin
-            next_player_table[i] = NPC;   // assert 这种情况在游戏中不会出现
+            next_player_table[i] = NPC;   
         end
     end
 end
@@ -123,175 +141,318 @@ initial begin
     current_player = Player'(1);        // 先手玩家
     cursor         = '{'d0, 'd0};
     cursor_type    = CHOOSE;
-    round          = 'd1;               // 初始回合（从 1 开始）
+    step_cnt       = 'd0;
     winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
+    state          = IN_ROUND;          // 初始游戏状态为回合进行中（TODO：更改）
 end
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
-assign cursor_h_o_test       = cursor.h;                                   // 当前光标位置的横坐标（h 坐标）
-assign cursor_v_o_test       = cursor.v;                                   // 当前光标位置的纵坐标（v 坐标）
-assign troop_o_test          = cells[cursor.h][cursor.v].troop;            // 当前格兵力
-assign owner_o_test          = cells[cursor.h][cursor.v].owner;            // 当前格归属方
-assign piece_type_o_test     = cells[cursor.h][cursor.v].piece_type;       // 当前格棋子类型
-assign current_player_o_test = current_player;                             // 当前回合玩家
-assign next_player_o_test    = next_player_table[current_player];          // 下一回合玩家
-assign cursor_type_o_test    = cursor_type;                                // 当前光标类型
+assign cursor_h_o_test       = cursor.h;                                // 当前光标位置的横坐标（h 坐标）
+assign cursor_v_o_test       = cursor.v;                                // 当前光标位置的纵坐标（v 坐标）
+assign troop_o_test          = cells[cursor.h][cursor.v].troop;         // 当前格兵力
+assign owner_o_test          = cells[cursor.h][cursor.v].owner;         // 当前格归属方
+assign piece_type_o_test     = cells[cursor.h][cursor.v].piece_type;    // 当前格棋子类型
+assign current_player_o_test = current_player;                          // 当前回合玩家
+assign next_player_o_test    = next_player_table[current_player];       // 下一回合玩家
+assign cursor_type_o_test    = cursor_type;                             // 当前光标类型
+assign operation_o_test      = operation;                               // 当前操作队列
+assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间 
 // [TEST END]
 
 //// [游戏内部数据 END]
 
 
-//// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
-always_ff @ (posedge clk_100M) begin
-    // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
-    if (keyboard_ready) begin
-        // 缓存一次未结算的操作
-        if (keyboard_data <= 'b101) begin
-            operation <= Operation'(keyboard_data);
-        end
-        // 并给键盘处理模块返回读取已完成的信号
-        keyboard_read_fin <= 'b1;
-    // 否则，本周期运行游戏逻辑
+//// [游戏逻辑部分 BEGIN]
+// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
+always_ff @ (posedge clock, posedge reset) begin
+    if (reset) begin
+        state <= READY;
+        // TODO 开始计时
     end else begin
-        keyboard_read_fin <= 'b0;
-        game_logic_top();
+        // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
+        if (keyboard_ready) begin
+            // 缓存一次未结算的操作
+            if (keyboard_data <= 'b101) begin
+                operation <= Operation'(keyboard_data);
+            end
+            // 并给键盘处理模块返回读取已完成的信号
+            keyboard_read_fin <= 'b1;
+        // 否则，本周期运行游戏逻辑
+        end else begin
+            keyboard_read_fin <= 'b0;
+            casez (state)
+                READY:        ready();
+                IN_ROUND:     in_round();
+                CHECK_WIN:    check_win();
+                ROUND_SWITCH: round_switch();
+                GAME_OVER:    ;
+                default: ; // assert 这种情况不应出现
+            endcase
+        end
+        // TODO 计时，用于生成随机初始局面
     end
 end
 
+// step_timer 倒计时秒表
+logic [26: 0] step_timer_50M;
+task step_timer_tick();
+    if (step_timer_50M == 'd49_999_999) begin
+        step_timer_50M <= 0;
+        step_timer     <= step_timer - 1;
+    end else begin
+        step_timer_50M <= step_timer_50M + 1;
+    end
+endtask
+task step_timer_reset();
+    step_timer     <= MAX_STEP_TIME;
+    step_timer_50M <= 0;
+endtask
 
-//// [游戏逻辑部分 BEGIN]
-// 游戏逻辑部分顶层 task
-task automatic game_logic_top();
-    // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空
-    if (operation != NONE) begin
-        casez (cursor_type)
-            CHOOSE: begin
-                casez (operation)
-                    W: // 上移
-                        if (cursor.v >= 1)                cursor.v <= cursor.v - 1;
-                    A: // 左移
-                        if (cursor.h >= 1)                cursor.h <= cursor.h - 1;
-                    S: // 下移
-                        if (cursor.v <= BORAD_WIDTH - 2)  cursor.v <= cursor.v + 1;
-                    D: // 右移
-                        if (cursor.h <= BORAD_WIDTH - 2)  cursor.h <= cursor.h + 1;
-                    Z: ;  // 选择模式下无法切换“全移/半移”
-                    SPACE: // 切换“选择模式/行棋模式”
-                        if (cells[cursor.h][cursor.v].owner == current_player && 
-                            cells[cursor.h][cursor.v].troop >= 2)
-                            cursor_type <= MOVE_TOTAL;  // 如果当前格子属于操作方，且兵力至少是 2，从选择模式切换到行棋模式是合法的
-                    default: ; // assert 这种情况不应出现
-                endcase
-            end
-            MOVE_HALF || MOVE_TOTAL: begin
-                casez (operation)
-                    // 如果当前操作是切换光标模式
-                    Z: // 切换“全移/半移”
-                        casez(cursor_type)
-                            MOVE_HALF:  cursor_type <= MOVE_TOTAL;
-                            MOVE_TOTAL: cursor_type <= MOVE_HALF;
-                            default:    cursor_type <= MOVE_TOTAL;  // assert 这种情况不应出现
-                        endcase
-                    SPACE: // 切换“选择模式/行棋模式”
-                        cursor_type <= CHOOSE;
-                    // 如果当前操作是行棋：
-                    // 如果操作合法（在 move_piece_to 中判断），走一步棋并进行胜负判断；否则不做响应
-                    W: // 上移
-                        if (cursor.v >= 1)
-                            move_piece_to('{cursor.h,     cursor.v - 1});
-                    A: // 左移
-                        if (cursor.h >= 1)
-                            move_piece_to('{cursor.h - 1, cursor.v    });
-                    S: // 下移
-                        if (cursor.v <= BORAD_WIDTH - 2)
-                            move_piece_to('{cursor.h,     cursor.v + 1});
-                    D: // 右移
-                        if (cursor.h <= BORAD_WIDTH - 2)
-                            move_piece_to('{cursor.h + 1, cursor.v    });
-                        // // 如果操作合法，胜负判断
-                        // if (check_win()) begin
-                        //     // 如果已分出胜负，那么标记游戏结束
-                        //     game_over();
-                        // end else begin
-                        //     // 如果未分出胜负，回合切换
-                        //     round_switch();
-                        // end
-                    default: ; // assert 这种情况不应出现
-                endcase
-            end
-            default: ; // assert 这种情况不应出现
-        endcase
-        // 标记当前操作队列为空
-        operation <= NONE;
+// 回合进行中
+task automatic in_round();
+    // 如果已超时，直接切换回合
+    if (step_timer == 0) begin
+        state <= ROUND_SWITCH;
+    end else begin
+    // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空、计时
+        if (operation != NONE) begin
+            casez (cursor_type)
+                CHOOSE: begin
+                    casez (operation)
+                        W: // 上移
+                            if (cursor.v >= 1)                cursor.v <= cursor.v - 1;
+                        A: // 左移
+                            if (cursor.h >= 1)                cursor.h <= cursor.h - 1;
+                        S: // 下移
+                            if (cursor.v <= BORAD_WIDTH - 2)  cursor.v <= cursor.v + 1;
+                        D: // 右移
+                            if (cursor.h <= BORAD_WIDTH - 2)  cursor.h <= cursor.h + 1;
+                        Z: ;  // 选择模式下无法切换“全移/半移”
+                        SPACE: // 切换“选择模式/行棋模式”
+                            if (cells[cursor.h][cursor.v].owner == current_player && 
+                                cells[cursor.h][cursor.v].troop >= 2)
+                                cursor_type <= MOVE_TOTAL;  // 如果当前格子属于操作方，且兵力至少是 2，从选择模式切换到行棋模式是合法的
+                        default: ; // assert 这种情况不应出现
+                    endcase
+                end
+                MOVE_HALF, MOVE_TOTAL: begin
+                    // 保证当前格子属于操作方，且兵力至少是 2
+                    casez (operation)
+                        // 如果当前操作是切换光标模式
+                        Z: // 切换“全移/半移”
+                            casez(cursor_type)
+                                MOVE_HALF:  cursor_type <= MOVE_TOTAL;
+                                MOVE_TOTAL: cursor_type <= MOVE_HALF;
+                                default:    cursor_type <= MOVE_TOTAL;  // assert 这种情况不应出现
+                            endcase
+                        SPACE: // 切换“选择模式/行棋模式”
+                            cursor_type <= CHOOSE;
+                        // 如果当前操作是行棋：
+                        // 如果操作合法（在 move_piece_to 中判断），走一步棋并进行胜负判断；否则不做响应
+                        W: // 上移
+                            if (cursor.v >= 1)
+                                move_piece_to('{cursor.h,     cursor.v - 1});
+                        A: // 左移
+                            if (cursor.h >= 1)
+                                move_piece_to('{cursor.h - 1, cursor.v    });
+                        S: // 下移
+                            if (cursor.v <= BORAD_WIDTH - 2)
+                                move_piece_to('{cursor.h,     cursor.v + 1});
+                        D: // 右移
+                            if (cursor.h <= BORAD_WIDTH - 2)
+                                move_piece_to('{cursor.h + 1, cursor.v    });
+                        default: ; // assert 这种情况不应出现
+                    endcase
+                end
+                default: ; // assert 这种情况不应出现
+            endcase
+            // 标记当前操作队列为空
+            operation <= NONE;
+        end
+        // 计时
+        step_timer_tick();
     end
 endtask
 
-
 // 判断是否合法并执行一次行棋操作，然后进行胜负判断
 task automatic move_piece_to(Position target_pos);
+    // 保证当前格子属于操作方，且兵力至少是 2
     // 保证目标位置仍在棋盘内
-    casez (cells[target_pos.h][target_pos.v].owner)
-        // 如果目标位置属于 NPC
-        NPC:
-            casez (cells[target_pos.h][target_pos.v].piece_type)
-                // 如果目标位置是 NPC 空地或 NPC 城市
-                TERRITORY, CITY: begin
-                    // 目标位置归属方、兵力更改，源位置兵力更改
-                    cells[target_pos.h][target_pos.v].owner <= current_player;
-                    if (cursor_type == MOVE_TOTAL) begin
-                        cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop - 1;
-                        cells[cursor.    h][cursor    .v].troop <= 1;
-                    end else begin
-                        cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop >> 1;
-                        cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
-                    end
-                    // 不需要移动光标（光标将自动切换到下一回合玩家的王城）
+
+    // 如果目标位置属于 NPC
+    if (cells[target_pos.h][target_pos.v].owner == NPC) begin
+        casez (cells[target_pos.h][target_pos.v].piece_type)
+            // 如果目标位置是 NPC 空地或 NPC 城市
+            TERRITORY, CITY: begin
+                if (cursor_type == MOVE_TOTAL) begin
+                    update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
+                end else begin
+                    update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
                 end
-                // 如果目标位置是山
-                MOUNTAIN:
-                    ;  // 不做响应
-                default:
-                    ; // assert 这种情况不应出现
-            endcase
-        
-        // TODO
-        // 如果目标位置属于己方
-        RED:
-            ;
-        BLUE:
-            ;
-        default:
-            ; // assert 这种情况不应出现
-    endcase
+                // 接下来进行回合切换
+                state <= ROUND_SWITCH;
+            end
+            // 如果目标位置是山
+            MOUNTAIN: ; // 不做响应
+            default:  ; // assert 这种情况不应出现
+        endcase
+    // 如果目标位置属于己方
+    end else if (cells[target_pos.h][target_pos.v].owner == current_player) begin
+        if (cursor_type == MOVE_TOTAL) begin
+            update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
+        end else begin
+            update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
+        end
+        // 接下来进行回合切换
+        state <= ROUND_SWITCH;
+    // 如果目标位置属于其他玩家
+    end else begin
+        if (cursor_type == MOVE_TOTAL) begin
+            update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
+        end else begin
+            update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
+        end
+        // 接下来进行胜负判断
+        state <= CHECK_WIN;
+    end
+endtask
+
+// 基于派出的兵力，更新源位置和目标位置兵力，并可能更新目标位置归属方
+task automatic update_troop_and_owner(logic [LOG2_MAX_TROOP - 1: 0] dispatched_troop, Position target_pos);
+    // 如果目标位置属于己方
+    if (cells[target_pos.h][target_pos.v].owner == current_player) begin
+        cells[target_pos.h][target_pos.v].troop <= cells[target_pos.h][target_pos.v].troop + dispatched_troop;
+        cells[cursor.    h][cursor    .v].troop <= cells[cursor.    h][cursor    .v].troop - dispatched_troop;
+    // 如果目标位置属于其他玩家，或者目标位置是 NPC 的空地/城市
+    end else begin
+        // 如果派出的兵力严格大于对方兵力
+        if (dispatched_troop > cells[target_pos.h][target_pos.v].troop) begin
+            // 目标位置归属方更改
+            cells[target_pos.h][target_pos.v].owner <= current_player;
+            // 源位置、目标位置兵力更改
+            cells[target_pos.h][target_pos.v].troop <= dispatched_troop - cells[target_pos.h][target_pos.v].troop;
+            cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - dispatched_troop;
+        // 如果派出的兵力不严格大于对方兵力
+        end else begin 
+            // 仅对源位置、目标位置兵力进行更改，不改变目标位置归属方
+            cells[target_pos.h][target_pos.v].troop <= cells[target_pos.h][target_pos.v].troop - dispatched_troop;
+            cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - dispatched_troop;
+        end
+    end
+endtask
+
+// 胜负判断，并记录胜者（如果胜负已分）
+task automatic check_win();
+    // 如果某方王城位置归属不再是自己，游戏结束
+    if          (cells[crowns_pos[RED ].h][crowns_pos[RED ].v].owner != RED)  begin
+        winner <= BLUE;
+        state  <= GAME_OVER;
+    end else if (cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].owner != BLUE) begin
+        winner <= RED;
+        state  <= GAME_OVER;
+    // 否则，游戏继续，进行回合切换
+    end else begin
+        state <= ROUND_SWITCH;
+    end
 endtask
 
 // 回合切换
 task automatic round_switch();
     // 操作执行完成后
-    // 将光标移动到下一回合玩家的王城
+    // 将光标移动到下一回合玩家的王城，光标模式设置为选择模式
     current_player <=            next_player_table[current_player] ;
     cursor         <= crowns_pos[next_player_table[current_player]];
-    // 光标模式设置为选择模式
     cursor_type    <= CHOOSE;
-    // TODO 维护 round
-
-    // TODO 如果 round 达到特定值，增加兵力（这个可能需要写一个状态，因为一个 always_ff 里不能重复赋值）
-
-    // TODO 重启计时器
+    // 更新 step_cnt （round 随之自动更新）
+    step_cnt <= step_cnt + 1;
+    // 每回合结束时，增加兵力
+    if (step_cnt[0] == 1) begin
+        // 每 15 回合结束时，所有玩家的格子增加 1 兵力
+        if (round[3:0] == 4'b0000) begin
+            for (byte h = 0; h < BORAD_WIDTH; ++h) begin
+                for (byte v = 0; v < BORAD_WIDTH; ++v) begin
+                    if (belong_to_player(h, v)) begin
+                        cells[h][v].troop <= cells[h][v].troop + 1;
+                    end
+                end
+            end
+        // 如果是普通的回合结束，所有玩家的王城和城市均增加 1 兵力
+        end else begin
+            for (byte h = 0; h < BORAD_WIDTH; ++h) begin
+                for (byte v = 0; v < BORAD_WIDTH; ++v) begin
+                    if (is_player_city_or_crown(h, v)) begin
+                        cells[h][v].troop <= cells[h][v].troop + 1;
+                    end
+                end
+            end
+        end
+    end
+    // 状态切换到回合中
+    state <= IN_ROUND;
+    // 重启计时器
+    step_timer_reset();
 endtask
 
-// 胜负判断
-function automatic logic check_win();
-    // 进行胜负判断，如果已分出胜负，记录胜者
-
+function automatic logic belong_to_player (logic [LOG2_BORAD_WIDTH - 1: 0] h, logic [LOG2_BORAD_WIDTH - 1: 0] v);
+    if (cells[h][v].owner == RED || cells[h][v].owner == BLUE)
+        return 1;
+    else
+        return 0;
 endfunction
 
-// 游戏结束
-task automatic game_over();
-    // （此时已经分出胜负）切换游戏状态到结束状态
-   
-endtask 
+function automatic logic is_player_city_or_crown (logic [LOG2_BORAD_WIDTH - 1: 0] h, logic [LOG2_BORAD_WIDTH - 1: 0] v);
+    if (belong_to_player(h, v) && (cells[h][v].piece_type == CITY || cells[h][v].piece_type == CROWN))
+        return 1;
+    else 
+        return 0;
+endfunction
 
+// 等待开始游戏
+task automatic ready();
+    // 如果此时开始按钮处于按下状态，那么开始游戏
+    if (start) begin
+        // TODO 生成随机初始局面
+        // 各方王城坐标
+        crowns_pos[RED]  <= '{'d2, 'd3};
+        crowns_pos[BLUE] <= '{'d8, 'd7};
+        // 初始化棋盘
+        for (int h = 0; h < BORAD_WIDTH; h++) begin
+            for (int v = 0; v < BORAD_WIDTH; v++) begin
+                // CROWN
+                if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
+                    cells[h][v] <= '{RED, CROWN, 'd87};
+                end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
+                    cells[h][v] <= '{BLUE, CROWN, 'd89};
+                // NPC
+                end else if (v == 5) begin
+                    cells[h][v] <= '{NPC, CITY, 'd0};
+                end else if (h + v == 9 && h >= 6) begin
+                    cells[h][v] <= '{NPC, MOUNTAIN, 'd0};
+                // RED
+                end else if (2 <= h && h <= 5 && 2 <= v && v <= 5) begin
+                    cells[h][v] <= '{RED, CITY, 'd25};
+                // BLUE
+                end else if (7 <= h && h <= 9 && 5 <= v && v <= 9) begin
+                    cells[h][v] <= '{BLUE, CITY, 'd37};
+                // NPC TERRITORY
+                end else begin
+                    cells[h][v] <= '{NPC, TERRITORY, 'd0};
+                end
+            end
+        end
+
+        operation      <= NONE;             // 操作队列初始化为空
+        current_player <= Player'(1);       // TODO 先手玩家
+        cursor         <= '{'d2, 'd3};      // TODO 坐标在先手玩家的王城
+        cursor_type    <= CHOOSE;
+        step_cnt       <= 'd0;
+        winner         <= NPC;              // 胜者，winner == NPC 表示尚未分出胜负
+        // 开始游戏
+        state <= IN_ROUND;
+        // 重启计时器
+        step_timer_reset();
+    end
+endtask 
 
 //// [游戏逻辑部分 END]
 
@@ -299,27 +460,46 @@ endtask
 
 //// [游戏显示部分 BEGIN]
 logic [15:0] address;//ram地址
+logic [15:0] numaddress;
 logic [31:0] bluecity_ramdata;
 logic [31:0] bluecrown_ramdata;
 logic [31:0] redcity_ramdata;
 logic [31:0] redcrown_ramdata;
 logic [31:0] mountain_ramdata;
 logic [31:0] neutralcity_ramdata;
+logic [31:0] blue_ramdata;
+logic [31:0] red_ramdata;
 logic [31:0] number1_ramdata;
-logic [31:0] white_ramdata;//该地址对应的ram中各类棋子的地址
+logic [31:0] number0_ramdata;
+logic [31:0] number2_ramdata;
+logic [31:0] number3_ramdata;
+logic [31:0] number4_ramdata;
+logic [31:0] number5_ramdata;
+logic [31:0] number6_ramdata;
+logic [31:0] number7_ramdata;
+logic [31:0] number8_ramdata;
+logic [31:0] number9_ramdata;
+logic [31:0] white_ramdata;
+logic [31:0] numberdata;
 logic [31:0] ramdata;//选择后的用作输出的ram数据
 logic [31:0] indata = 32'b0;//用于为ram输入赋值（没用）
 logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;//取模后的v
 logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;//取模后的h
-logic [7:0] cur_v;//从像素坐标转换到数组v坐标
-logic [7:0] cur_h;//从像素坐标转换到数组h坐标
+logic [LOG2_BORAD_WIDTH - 1:0] cur_v;//从像素坐标转换到数组v坐标
+logic [LOG2_BORAD_WIDTH - 1:0] cur_h;//从像素坐标转换到数组h坐标
 logic is_gen;
 logic [7:0] cur_owner;
 logic [7:0] cur_piecetype;
+logic [8:0] cur_troop;
+logic [3:0] cur_hundreds;
+logic [3:0] cur_tens;
+logic [3:0] cur_ones;
 assign cur_owner = cells[cur_h][cur_v].owner;
 assign cur_piecetype = cells[cur_h][cur_v].piece_type;
+assign cur_troop = cells[cur_h][cur_v].troop;
 int cursor_array [0:9] = '{'d40, 'd80, 'd120, 'd160, 'd200, 'd240, 'd280, 'd320, 'd360, 'd400};
 assign address = vdata_to_ram*40 + hdata_to_ram;
+
 always_comb begin
     if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
     &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
@@ -327,9 +507,9 @@ always_comb begin
     // // &&(vdata<=50*(cursor.v+1)+49 && vdata>=50*(cursor.v+1)+1 && hdata<=50*(cursor.h+1)+49 && hdata>=50*(cursor.h+1)+1)) begin  
     // // if((hdata == 51 || hdata == 99 || vdata == 51 || vdata==99)
     // // &&(vdata<=99 && vdata>=51 && hdata<=99 && hdata>=51)) begin 
-        gen_red = 255;
+        gen_red = 0;
         gen_green = 255;
-        gen_blue = 255;
+        gen_blue = 0;
     end else 
     if (vdata<=440&&vdata>=40&&hdata<=440&&hdata>=40) begin
         gen_red = ramdata[7:0];
@@ -341,7 +521,32 @@ always_comb begin
         gen_blue = 0;
     end
 end
-// //通过打表避免使用除法取模，找到对应ram中的坐标和棋盘坐标
+always_comb begin
+    if (hdata_to_ram <= 17) begin
+        numaddress = (vdata_to_ram)*40+hdata_to_ram+6;
+    end else if (hdata_to_ram >= 23) begin
+        numaddress = (vdata_to_ram)*40+hdata_to_ram-6;
+    end else begin 
+        numaddress = (vdata_to_ram)*40+hdata_to_ram;
+    end
+end
+//通过打表避免使用除法取模，找到对应ram中的坐标和棋盘坐标
+// Coordinate_Transfer #(
+//         .VGA_WIDTH(VGA_WIDTH),
+//         .LOG2_BORAD_WIDTH(LOG2_BORAD_WIDTH)
+//     ) coordinate_transfer_h (
+//         .coordinate(hdata),
+//         .coordinate_to_ram(hdata_to_ram),
+//         .coordinate_in_board(cur_h)
+// );
+// Coordinate_Transfer #(
+//         .VGA_WIDTH(VGA_WIDTH),
+//         .LOG2_BORAD_WIDTH(LOG2_BORAD_WIDTH)
+//     ) coordinate_transfer_v (
+//         .coordinate(vdata),
+//         .coordinate_to_ram(vdata_to_ram),
+//         .coordinate_in_board(cur_v)
+//);
 always_comb begin
     if (hdata>=0 && hdata<40) begin
         hdata_to_ram = hdata;
@@ -420,6 +625,78 @@ always_comb begin
         cur_v = 0;
     end
 end
+
+always_comb begin
+    if (hdata_to_ram <= 17) begin
+        if (cur_hundreds == 0) begin
+            numberdata = number0_ramdata;
+        end else if (cur_hundreds == 1) begin
+            numberdata = number1_ramdata;
+        end else if (cur_hundreds == 2) begin
+            numberdata = number2_ramdata;
+        end else if (cur_hundreds == 3) begin
+            numberdata = number3_ramdata;
+        end else if (cur_hundreds == 4) begin
+            numberdata = number4_ramdata;
+        end else if (cur_hundreds == 5) begin
+            numberdata = number5_ramdata;
+        end else if (cur_hundreds == 6) begin
+            numberdata = number6_ramdata;
+        end else if (cur_hundreds == 7) begin
+            numberdata = number7_ramdata;
+        end else if (cur_hundreds == 8) begin
+            numberdata = number8_ramdata;
+        end else begin
+            numberdata = number9_ramdata;
+        end
+    end
+    else if (hdata_to_ram >= 23) begin
+        if (cur_ones == 0) begin
+            numberdata = number0_ramdata;
+        end else if (cur_ones == 1) begin
+            numberdata = number1_ramdata;
+        end else if (cur_ones == 2) begin
+            numberdata = number2_ramdata;
+        end else if (cur_ones == 3) begin
+            numberdata = number3_ramdata;
+        end else if (cur_ones == 4) begin
+            numberdata = number4_ramdata;
+        end else if (cur_ones == 5) begin
+            numberdata = number5_ramdata;
+        end else if (cur_ones == 6) begin
+            numberdata = number6_ramdata;
+        end else if (cur_ones == 7) begin
+            numberdata = number7_ramdata;
+        end else if (cur_ones == 8) begin
+            numberdata = number8_ramdata;
+        end else begin
+            numberdata = number9_ramdata;
+        end            
+    end
+    else begin
+        if (cur_tens == 0) begin
+            numberdata = number0_ramdata;
+        end else if (cur_tens == 1) begin
+            numberdata = number1_ramdata;
+        end else if (cur_tens == 2) begin
+            numberdata = number2_ramdata;
+        end else if (cur_tens == 3) begin
+            numberdata = number3_ramdata;
+        end else if (cur_tens == 4) begin
+            numberdata = number4_ramdata;
+        end else if (cur_tens == 5) begin
+            numberdata = number5_ramdata;
+        end else if (cur_tens == 6) begin
+            numberdata = number6_ramdata;
+        end else if (cur_tens == 7) begin
+            numberdata = number7_ramdata;
+        end else if (cur_tens == 8) begin
+            numberdata = number8_ramdata;
+        end else begin
+            numberdata = number9_ramdata;
+        end
+    end
+end
 always_comb begin
     // if (cur_owner == NPC && cur_piecetype == TERRITORY) begin
     //     is_gen = 1;
@@ -446,10 +723,11 @@ always_comb begin
     //     is_gen = 1;
     //     ramdata = 0;
     // // end
-    if (number1_ramdata[31:24]!=0) begin//恒定显示为1，不要数字删了即可
+    if (cur_troop!=0 && numberdata[31:24] == 255) begin
         is_gen = 1;
-        ramdata = number1_ramdata;
-    end else if (cur_owner == NPC) begin
+        ramdata = numberdata;
+    end else 
+    if (cur_owner == NPC) begin
         if (cur_piecetype == CITY) begin
             is_gen = 1;
             ramdata = neutralcity_ramdata;
@@ -468,8 +746,8 @@ always_comb begin
             is_gen = 1;
             ramdata = redcity_ramdata;
         end else begin
-            is_gen = 0;
-            ramdata = 0;
+            is_gen = 1;
+            ramdata = red_ramdata;
         end
     end else if (cur_owner == BLUE) begin
         if (cur_piecetype == CROWN) begin
@@ -479,8 +757,8 @@ always_comb begin
             is_gen = 1;
             ramdata = bluecity_ramdata;
         end else begin
-            is_gen = 0;
-            ramdata = 0;
+            is_gen = 1;
+            ramdata = blue_ramdata;
         end
     end else begin
         is_gen = 0;
@@ -494,56 +772,141 @@ end
 
 // ram_white ram_white (
 //     .address(address),
-//     .clock(clk_100M),
+//     .clock(clock),
 //     .data(indata),
 //     .wren(0),
 //     .q(white_ramdata)
-// );    
-ram_bluecity ram_bluecity_test (
-    .address(address),
-    .clock(clk_100M),
+// ); 
+Number_Transfer  #(
+    .BIT(LOG2_MAX_TROOP)
+) number_transfer(
+    .number(cur_troop),
+    .hundreds(cur_hundreds),
+    .tens(cur_tens),
+    .ones(cur_ones) 
+);
+ram_number0 ram_number0_test (
+    .address(numaddress),
+    .clock(clock),
     .data(indata),
     .wren(0),
-    .q(bluecity_ramdata)  
+    .q(number0_ramdata)  
 );
 ram_number1 ram_number1_test (
-    .address(address),
-    .clock(clk_100M),
+    .address(numaddress),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number1_ramdata)  
 );
+ram_number2 ram_number2_test (
+    .address(numaddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(number2_ramdata)  
+);   
+ram_number3 ram_number3_test (
+    .address(numaddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(number3_ramdata)  
+);  
+ram_number4 ram_number4_test (
+    .address(numaddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(number4_ramdata)  
+);  
+ram_number5 ram_number5test (
+    .address(numaddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(number5_ramdata)  
+);  
+ram_number6 ram_number6_test (
+    .address(numaddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(number6_ramdata)  
+);  
+ram_number7 ram_number7_test (
+    .address(numaddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(number7_ramdata)  
+);  
+ram_number8 ram_number8_test (
+    .address(numaddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(number8_ramdata)  
+);  
+ram_number9 ram_number9_test (
+    .address(numaddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(number9_ramdata)  
+);  
+ram_blue ram_blue_test (
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(blue_ramdata)  
+);
+ram_bluecity ram_bluecity_test (
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bluecity_ramdata)  
+);
 ram_bluecrown ram_bluecrown_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(bluecrown_ramdata)
 );
+ram_red ram_red_test (
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(red_ramdata)  
+);
 ram_redcity ram_redcity_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(redcity_ramdata)
 );
 ram_redcrown ram_redcrown_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(redcrown_ramdata)
 );
 ram_neutralcity ram_neutralcity_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(neutralcity_ramdata)
 );
 ram_mountain ram_mountain_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)
@@ -554,6 +917,10 @@ always_comb begin
        || vdata == 40 || vdata == 80 || vdata == 120 || vdata == 160 || vdata == 200 
        || vdata == 240 || vdata == 280 || vdata == 320 || vdata == 360 || vdata == 400 || vdata == 440) begin
         use_gen = 0;
+    end 
+    else if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
+    &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
+        use_gen = 1;
     end else if (is_gen) begin
         use_gen = 1;
     end else begin
