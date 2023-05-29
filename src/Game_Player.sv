@@ -64,7 +64,7 @@ typedef enum logic [1:0] {
     MOVE_HALF  = 2'b11
 } Cursor_type;
 // 键盘操作类型
-typedef enum logic[2:0]  {
+typedef enum logic [2:0] {
     W     = 3'b000, 
     A     = 3'b001, 
     S     = 3'b010, 
@@ -73,6 +73,11 @@ typedef enum logic[2:0]  {
     Z     = 3'b101, 
     NONE  = 3'b110   // 表示没有操作
 } Operation;
+// 游戏状态
+typedef enum logic [2:0] {
+    IN_ROUND        = 2'b00,  // 回合内
+    ROUND_SWITCHING = 2'b01   // 回合切换中
+} State;
 
 
 // 游戏数据
@@ -85,6 +90,7 @@ Position                      cursor;               // 当前光标位置
 Cursor_type                   cursor_type;          // 光标所处模式：选择模式(0x)，行棋模式(1x)
 logic    [LOG2_MAX_ROUND: 0]  round;                // 当前回合（从 1 开始）
 Player                        winner;               // 胜者
+State                         state;                // 当前游戏状态
 
 
 // 游戏常数：玩家顺序表
@@ -125,6 +131,7 @@ initial begin
     cursor_type    = CHOOSE;
     round          = 'd1;               // 初始回合（从 1 开始）
     winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
+    state          = IN_ROUND;          // 初始游戏状态为回合进行中（TODO：更改）
 end
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
@@ -183,7 +190,8 @@ task automatic game_logic_top();
                     default: ; // assert 这种情况不应出现
                 endcase
             end
-            MOVE_HALF || MOVE_TOTAL: begin
+            MOVE_HALF, MOVE_TOTAL: begin
+                // 保证当前格子属于操作方，且兵力至少是 2
                 casez (operation)
                     // 如果当前操作是切换光标模式
                     Z: // 切换“全移/半移”
@@ -229,43 +237,81 @@ endtask
 
 // 判断是否合法并执行一次行棋操作，然后进行胜负判断
 task automatic move_piece_to(Position target_pos);
+    // 保证当前格子属于操作方，且兵力至少是 2
     // 保证目标位置仍在棋盘内
-    casez (cells[target_pos.h][target_pos.v].owner)
-        // 如果目标位置属于 NPC
-        NPC:
-            casez (cells[target_pos.h][target_pos.v].piece_type)
-                // 如果目标位置是 NPC 空地或 NPC 城市
-                TERRITORY, CITY: begin
-                    // 目标位置归属方、兵力更改，源位置兵力更改
-                    cells[target_pos.h][target_pos.v].owner <= current_player;
-                    if (cursor_type == MOVE_TOTAL) begin
-                        cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop - 1;
-                        cells[cursor.    h][cursor    .v].troop <= 1;
-                    end else begin
-                        cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop >> 1;
-                        cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
-                    end
-                    // 不需要移动光标（光标将自动切换到下一回合玩家的王城）
+
+    // 如果目标位置属于 NPC
+    if (cells[target_pos.h][target_pos.v].owner == NPC) begin
+        casez (cells[target_pos.h][target_pos.v].piece_type)
+            // 如果目标位置是 NPC 空地或 NPC 城市
+            TERRITORY, CITY: begin
+                // 目标位置归属方、兵力更改，源位置兵力更改
+                cells[target_pos.h][target_pos.v].owner <= current_player;
+                if (cursor_type == MOVE_TOTAL) begin
+                    cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop - 1;
+                    cells[cursor.    h][cursor    .v].troop <= 1;
+                end else begin
+                    cells[target_pos.h][target_pos.v].troop <= cells[cursor.h][cursor.v].troop >> 1;
+                    cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
                 end
-                // 如果目标位置是山
-                MOUNTAIN:
-                    ;  // 不做响应
-                default:
-                    ; // assert 这种情况不应出现
-            endcase
-        
-        // TODO
-        // 如果目标位置属于己方
-        RED:
-            ;
-        BLUE:
-            ;
-        default:
-            ; // assert 这种情况不应出现
-    endcase
+                // 回合切换
+                state <= ROUND_SWITCHING;
+            end
+            // 如果目标位置是山
+            MOUNTAIN: ; // 不做响应
+            default:  ; // assert 这种情况不应出现
+        endcase
+    // 如果目标位置属于己方
+    end else if (cells[target_pos.h][target_pos.v].owner == current_player) begin
+        // 仅需要对源位置和目标位置兵力进行更改
+        if (cursor_type == MOVE_TOTAL) begin
+            cells[target_pos.h][target_pos.v].troop <= cells[target_pos.h][target_pos.v].troop + cells[cursor.h][cursor.v].troop - 1;
+            cells[cursor.    h][cursor    .v].troop <= 1;
+        end else begin
+            cells[target_pos.h][target_pos.v].troop <= cells[target_pos.h][target_pos.v].troop + (cells[cursor.h][cursor.v].troop >> 1);
+            cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
+        end
+        // 回合切换
+        state <= ROUND_SWITCHING;
+    // 如果目标位置属于其他玩家
+    end else begin
+        if (cursor_type == MOVE_TOTAL) begin
+            // 如果派出的兵力严格大于对方兵力
+            if (cells[cursor.h][cursor.v].troop - 1 > cells[target_pos.h][target_pos.v].troop) begin
+                // 目标位置归属方更改
+                cells[target_pos.h][target_pos.v].owner <= current_player;
+                // 源位置、目标位置兵力更改
+                cells[target_pos.h][target_pos.v].troop <= (cells[cursor.h][cursor.v].troop - 1) - cells[target_pos.h][target_pos.v].troop;
+                cells[cursor.    h][cursor    .v].troop <= 1;
+            // 如果派出的兵力不严格大于对方兵力
+            end else begin 
+                // 仅对源位置、目标位置兵力进行更改，不改变目标位置归属方
+                cells[target_pos.h][target_pos.v].troop <= cells[target_pos.h][target_pos.v].troop - (cells[cursor.h][cursor.v].troop - 1);
+                cells[cursor.    h][cursor    .v].troop <= 1;
+            end
+        end else begin
+            // 逻辑同上
+            // 如果派出的兵力严格大于对方兵力
+            if ((cells[cursor.h][cursor.v].troop >> 1) > cells[target_pos.h][target_pos.v].troop) begin
+                // 目标位置归属方更改
+                cells[target_pos.h][target_pos.v].owner <= current_player;
+                // 源位置、目标位置兵力更改
+                cells[target_pos.h][target_pos.v].troop <= (cells[cursor.h][cursor.v].troop >> 1) - cells[target_pos.h][target_pos.v].troop;
+                cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
+            // 如果派出的兵力不严格大于对方兵力
+            end else begin 
+                // 仅对源位置、目标位置兵力进行更改，不改变目标位置归属方
+                cells[target_pos.h][target_pos.v].troop <= cells[target_pos.h][target_pos.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
+                cells[cursor.    h][cursor    .v].troop <= cells[cursor.h][cursor.v].troop - (cells[cursor.h][cursor.v].troop >> 1);
+            end
+        end
+        // 胜负判断
+        state <= CHECK_WIN;
+    end
 endtask
 
 // 回合切换
+// TODO 设置一个状态 ROUND_SWITCH
 task automatic round_switch();
     // 操作执行完成后
     // 将光标移动到下一回合玩家的王城
