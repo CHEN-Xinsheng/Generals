@@ -7,7 +7,9 @@ module Game_Player
             LOG2_PIECE_TYPE_CNT  = 2, 
             LOG2_MAX_TROOP       = 9, 
             LOG2_MAX_ROUND       = 12,
-            LOG2_MAX_CURSOR_TYPE = 2) (
+            LOG2_MAX_CURSOR_TYPE = 2,
+            MAX_STEP_TIME        = 15,
+            LOG2_MAX_STEP_TIME   = 5) (
     //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
     output wire [LOG2_BORAD_WIDTH - 1: 0]       cursor_h_o_test,         // 当前光标位置的横坐标（h 坐标）
     output wire [LOG2_BORAD_WIDTH - 1: 0]       cursor_v_o_test,         // 当前光标位置的纵坐标（v 坐标）
@@ -21,7 +23,7 @@ module Game_Player
     //// [TEST END]
 
     //// input
-    input wire                    clk_100M,
+    input wire                    clock,
     input wire                    start,              // 游戏开始
     input wire                    reset,
     input wire                    clk_vga,
@@ -90,14 +92,15 @@ typedef enum logic [2:0] {
 Cell      cells      [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0];  // 棋盘结构体数组
 Position  crowns_pos [MAX_PLAYER_CNT - 1:0];        // 每个玩家王城的位置
 
-Operation                     operation;            // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
-Player                        current_player;       // 当前玩家
-Position                      cursor;               // 当前光标位置
-Cursor_type                   cursor_type;          // 光标所处模式：选择模式(0x)，行棋模式(1x)
-logic [LOG2_MAX_ROUND:     0] step_cnt;             // 已经进行的行棋操作次数（包括超时，视为空操作）
-logic [LOG2_MAX_ROUND - 1: 0] round;                // 当前回合（从 1 开始）
-Player                        winner;               // 胜者，该值仅当 state == GAME_OVER 时有效
-State                         state;                // 当前游戏状态
+Operation                           operation;          // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
+Player                              current_player;     // 当前玩家
+Position                            cursor;             // 当前光标位置
+Cursor_type                         cursor_type;        // 光标所处模式：选择模式(0x)，行棋模式(1x)
+logic [LOG2_MAX_ROUND:     0]       step_cnt;           // 已经进行的行棋操作次数（包括超时，视为空操作）
+logic [LOG2_MAX_ROUND - 1: 0]       round;              // 当前回合（从 1 开始）
+Player                              winner;             // 胜者，该值仅当 state == GAME_OVER 时有效
+State                               state;              // 当前游戏状态
+logic [LOG2_MAX_STEP_TIME -1: 0]    step_timer;         // 当前回合剩余时间
 
 assign round = (step_cnt + 1) >> 1;
 
@@ -157,8 +160,9 @@ assign operation_o_test      = operation;                               // 当�
 //// [游戏内部数据 END]
 
 
-//// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
-always_ff @ (posedge clk_100M, posedge reset) begin
+//// [游戏逻辑部分 BEGIN]
+// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
+always_ff @ (posedge clock, posedge reset) begin
     if (reset) begin
         state <= READY;
         // TODO 开始计时
@@ -187,15 +191,28 @@ always_ff @ (posedge clk_100M, posedge reset) begin
     end
 end
 
+// step_timer 倒计时秒表
+logic [26: 0] step_timer_100M;
+task automatic step_timer_tick();
+    if (step_timer_100M == 'd999_999) begin
+        step_timer_100M <= 0;
+        step_timer      <= step_timer - 1;
+    end else begin
+        step_timer_100M <= step_timer_100M + 1;
+    end
+endtask
+task automatic step_timer_reset();
+    step_timer      <= MAX_STEP_TIME;
+    step_timer_100M <= 0;
+endtask
 
-//// [游戏逻辑部分 BEGIN]
 // 回合进行中
 task automatic in_round();
     // 如果已超时，直接切换回合
-    // TODO
-
-    // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空
-    if (operation != NONE) begin
+    if (step_timer == 0) begin
+        state <= ROUND_SWITCH;
+    // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空、计时
+    end else if (operation != NONE) begin
         casez (cursor_type)
             CHOOSE: begin
                 casez (operation)
@@ -248,9 +265,10 @@ task automatic in_round();
         endcase
         // 标记当前操作队列为空
         operation <= NONE;
+        // 计时
+        step_timer_tick();
     end
 endtask
-
 
 // 判断是否合法并执行一次行棋操作，然后进行胜负判断
 task automatic move_piece_to(Position target_pos);
@@ -365,7 +383,8 @@ task automatic round_switch();
             end
         end
     end
-    // TODO 重启计时器
+    // 重启计时器
+    step_timer_reset();
 endtask
 
 function automatic logic belong_to_player (logic [LOG2_BORAD_WIDTH - 1: 0] h, logic [LOG2_BORAD_WIDTH - 1: 0] v);
@@ -424,6 +443,8 @@ task automatic ready();
         winner         <= NPC;              // 胜者，winner == NPC 表示尚未分出胜负
         // 开始游戏
         state <= IN_ROUND;
+        // 重启计时器
+        step_timer_reset();
     end
 endtask 
 
@@ -745,7 +766,7 @@ end
 
 // ram_white ram_white (
 //     .address(address),
-//     .clock(clk_100M),
+//     .clock(clock),
 //     .data(indata),
 //     .wren(0),
 //     .q(white_ramdata)
@@ -760,126 +781,126 @@ Number_Transfer  #(
 );
 ram_number0 ram_number0_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number0_ramdata)  
 );
 ram_number1 ram_number1_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number1_ramdata)  
 );
 ram_number2 ram_number2_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number2_ramdata)  
 );   
 ram_number3 ram_number3_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number3_ramdata)  
 );  
 ram_number4 ram_number4_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number4_ramdata)  
 );  
 ram_number5 ram_number5test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number5_ramdata)  
 );  
 ram_number6 ram_number6_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number6_ramdata)  
 );  
 ram_number7 ram_number7_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number7_ramdata)  
 );  
 ram_number8 ram_number8_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number8_ramdata)  
 );  
 ram_number9 ram_number9_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number9_ramdata)  
 );  
 ram_blue ram_blue_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(blue_ramdata)  
 );
 ram_bluecity ram_bluecity_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(bluecity_ramdata)  
 );
 ram_bluecrown ram_bluecrown_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(bluecrown_ramdata)
 );
 ram_red ram_red_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(red_ramdata)  
 );
 ram_redcity ram_redcity_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(redcity_ramdata)
 );
 ram_redcrown ram_redcrown_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(redcrown_ramdata)
 );
 ram_neutralcity ram_neutralcity_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(neutralcity_ramdata)
 );
 ram_mountain ram_mountain_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)
