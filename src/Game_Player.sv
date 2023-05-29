@@ -104,7 +104,7 @@ Player                              winner;             // 胜者，该值仅当
 State                               state;              // 当前游戏状态
 logic [LOG2_MAX_STEP_TIME -1: 0]    step_timer;         // 当前回合剩余时间
 
-assign round = (step_cnt + 1) >> 1;
+assign round = (step_cnt >> 1) + 1;
 
 // 游戏常数：玩家顺序表
 Player  next_player_table [MAX_PLAYER_CNT - 1:0];   // 每个玩家的下一玩家
