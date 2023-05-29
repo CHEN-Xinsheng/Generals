@@ -20,6 +20,7 @@ module Game_Player
     output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    next_player_o_test,      // 下一回合玩家
     output wire [LOG2_MAX_CURSOR_TYPE -1: 0]    cursor_type_o_test,      // 当前光标类型
     output wire [2: 0]                          operation_o_test,        // 当前操作队列
+    output wire [LOG2_MAX_STEP_TIME -1: 0]      step_timer_o_test,       // 当前回合剩余时间
     //// [TEST END]
 
     //// input
@@ -155,6 +156,7 @@ assign current_player_o_test = current_player;                          // 当�
 assign next_player_o_test    = next_player_table[current_player];       // 下一回合玩家
 assign cursor_type_o_test    = cursor_type;                             // 当前光标类型
 assign operation_o_test      = operation;                               // 当前操作队列
+assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间 
 // [TEST END]
 
 //// [游戏内部数据 END]
@@ -192,18 +194,18 @@ always_ff @ (posedge clock, posedge reset) begin
 end
 
 // step_timer 倒计时秒表
-logic [26: 0] step_timer_100M;
+logic [26: 0] step_timer_50M;
 task step_timer_tick();
-    if (step_timer_100M == 'd999_999) begin
-        step_timer_100M <= 0;
-        step_timer      <= step_timer - 1;
+    if (step_timer_50M == 'd49_999_999) begin
+        step_timer_50M <= 0;
+        step_timer     <= step_timer - 1;
     end else begin
-        step_timer_100M <= step_timer_100M + 1;
+        step_timer_50M <= step_timer_50M + 1;
     end
 endtask
 task step_timer_reset();
-    step_timer      <= MAX_STEP_TIME;
-    step_timer_100M <= 0;
+    step_timer     <= MAX_STEP_TIME;
+    step_timer_50M <= 0;
 endtask
 
 // 回合进行中
@@ -211,60 +213,62 @@ task automatic in_round();
     // 如果已超时，直接切换回合
     if (step_timer == 0) begin
         state <= ROUND_SWITCH;
+    end else begin
     // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空、计时
-    end else if (operation != NONE) begin
-        casez (cursor_type)
-            CHOOSE: begin
-                casez (operation)
-                    W: // 上移
-                        if (cursor.v >= 1)                cursor.v <= cursor.v - 1;
-                    A: // 左移
-                        if (cursor.h >= 1)                cursor.h <= cursor.h - 1;
-                    S: // 下移
-                        if (cursor.v <= BORAD_WIDTH - 2)  cursor.v <= cursor.v + 1;
-                    D: // 右移
-                        if (cursor.h <= BORAD_WIDTH - 2)  cursor.h <= cursor.h + 1;
-                    Z: ;  // 选择模式下无法切换“全移/半移”
-                    SPACE: // 切换“选择模式/行棋模式”
-                        if (cells[cursor.h][cursor.v].owner == current_player && 
-                            cells[cursor.h][cursor.v].troop >= 2)
-                            cursor_type <= MOVE_TOTAL;  // 如果当前格子属于操作方，且兵力至少是 2，从选择模式切换到行棋模式是合法的
-                    default: ; // assert 这种情况不应出现
-                endcase
-            end
-            MOVE_HALF, MOVE_TOTAL: begin
-                // 保证当前格子属于操作方，且兵力至少是 2
-                casez (operation)
-                    // 如果当前操作是切换光标模式
-                    Z: // 切换“全移/半移”
-                        casez(cursor_type)
-                            MOVE_HALF:  cursor_type <= MOVE_TOTAL;
-                            MOVE_TOTAL: cursor_type <= MOVE_HALF;
-                            default:    cursor_type <= MOVE_TOTAL;  // assert 这种情况不应出现
-                        endcase
-                    SPACE: // 切换“选择模式/行棋模式”
-                        cursor_type <= CHOOSE;
-                    // 如果当前操作是行棋：
-                    // 如果操作合法（在 move_piece_to 中判断），走一步棋并进行胜负判断；否则不做响应
-                    W: // 上移
-                        if (cursor.v >= 1)
-                            move_piece_to('{cursor.h,     cursor.v - 1});
-                    A: // 左移
-                        if (cursor.h >= 1)
-                            move_piece_to('{cursor.h - 1, cursor.v    });
-                    S: // 下移
-                        if (cursor.v <= BORAD_WIDTH - 2)
-                            move_piece_to('{cursor.h,     cursor.v + 1});
-                    D: // 右移
-                        if (cursor.h <= BORAD_WIDTH - 2)
-                            move_piece_to('{cursor.h + 1, cursor.v    });
-                    default: ; // assert 这种情况不应出现
-                endcase
-            end
-            default: ; // assert 这种情况不应出现
-        endcase
-        // 标记当前操作队列为空
-        operation <= NONE;
+        if (operation != NONE) begin
+            casez (cursor_type)
+                CHOOSE: begin
+                    casez (operation)
+                        W: // 上移
+                            if (cursor.v >= 1)                cursor.v <= cursor.v - 1;
+                        A: // 左移
+                            if (cursor.h >= 1)                cursor.h <= cursor.h - 1;
+                        S: // 下移
+                            if (cursor.v <= BORAD_WIDTH - 2)  cursor.v <= cursor.v + 1;
+                        D: // 右移
+                            if (cursor.h <= BORAD_WIDTH - 2)  cursor.h <= cursor.h + 1;
+                        Z: ;  // 选择模式下无法切换“全移/半移”
+                        SPACE: // 切换“选择模式/行棋模式”
+                            if (cells[cursor.h][cursor.v].owner == current_player && 
+                                cells[cursor.h][cursor.v].troop >= 2)
+                                cursor_type <= MOVE_TOTAL;  // 如果当前格子属于操作方，且兵力至少是 2，从选择模式切换到行棋模式是合法的
+                        default: ; // assert 这种情况不应出现
+                    endcase
+                end
+                MOVE_HALF, MOVE_TOTAL: begin
+                    // 保证当前格子属于操作方，且兵力至少是 2
+                    casez (operation)
+                        // 如果当前操作是切换光标模式
+                        Z: // 切换“全移/半移”
+                            casez(cursor_type)
+                                MOVE_HALF:  cursor_type <= MOVE_TOTAL;
+                                MOVE_TOTAL: cursor_type <= MOVE_HALF;
+                                default:    cursor_type <= MOVE_TOTAL;  // assert 这种情况不应出现
+                            endcase
+                        SPACE: // 切换“选择模式/行棋模式”
+                            cursor_type <= CHOOSE;
+                        // 如果当前操作是行棋：
+                        // 如果操作合法（在 move_piece_to 中判断），走一步棋并进行胜负判断；否则不做响应
+                        W: // 上移
+                            if (cursor.v >= 1)
+                                move_piece_to('{cursor.h,     cursor.v - 1});
+                        A: // 左移
+                            if (cursor.h >= 1)
+                                move_piece_to('{cursor.h - 1, cursor.v    });
+                        S: // 下移
+                            if (cursor.v <= BORAD_WIDTH - 2)
+                                move_piece_to('{cursor.h,     cursor.v + 1});
+                        D: // 右移
+                            if (cursor.h <= BORAD_WIDTH - 2)
+                                move_piece_to('{cursor.h + 1, cursor.v    });
+                        default: ; // assert 这种情况不应出现
+                    endcase
+                end
+                default: ; // assert 这种情况不应出现
+            endcase
+            // 标记当前操作队列为空
+            operation <= NONE;
+        end
         // 计时
         step_timer_tick();
     end
@@ -383,6 +387,8 @@ task automatic round_switch();
             end
         end
     end
+    // 状态切换到回合中
+    state <= IN_ROUND;
     // 重启计时器
     step_timer_reset();
 endtask
@@ -501,9 +507,9 @@ always_comb begin
     // // &&(vdata<=50*(cursor.v+1)+49 && vdata>=50*(cursor.v+1)+1 && hdata<=50*(cursor.h+1)+49 && hdata>=50*(cursor.h+1)+1)) begin  
     // // if((hdata == 51 || hdata == 99 || vdata == 51 || vdata==99)
     // // &&(vdata<=99 && vdata>=51 && hdata<=99 && hdata>=51)) begin 
-        gen_red = 255;
+        gen_red = 0;
         gen_green = 255;
-        gen_blue = 255;
+        gen_blue = 0;
     end else 
     if (vdata<=440&&vdata>=40&&hdata<=440&&hdata>=40) begin
         gen_red = ramdata[7:0];
@@ -772,7 +778,7 @@ end
 //     .q(white_ramdata)
 // ); 
 Number_Transfer  #(
-    .LOG2_MAX_TROOP(LOG2_MAX_TROOP)
+    .BIT(LOG2_MAX_TROOP)
 ) number_transfer(
     .number(cur_troop),
     .hundreds(cur_hundreds),

@@ -1,12 +1,12 @@
 module Number_Transfer
-#(parameter LOG2_MAX_TROOP = 9)(
-	input wire [LOG2_MAX_TROOP-1:0] number,
+#(parameter BIT = 9)(
+	input wire [BIT-1:0] number,
 	output wire [3:0] ones,
 	output wire [3:0] tens,
 	output wire [3:0] hundreds
 );
 
-logic [LOG2_MAX_TROOP-1:0] removehundreds;
+logic [BIT-1:0] removehundreds;
 always_comb begin
 	if (number < 100) begin
 		hundreds = 0;
