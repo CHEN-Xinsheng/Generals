@@ -106,13 +106,15 @@ dpy_scan u_dpy_scan (
 //// 参数设定
 // 游戏逻辑相关
 parameter BORAD_WIDTH           = 10;  // 棋盘宽度
-parameter LOG2_BORAD_WIDTH      = $clog2(BORAD_WIDTH);   // 棋盘宽度对 2 取对数（向上取整）
+parameter LOG2_BORAD_WIDTH      = $clog2(BORAD_WIDTH);   // 棋盘宽度，对 2 取对数（向上取整）
 parameter MAX_PLAYER_CNT        = 7;   // 玩家数量
 parameter LOG2_MAX_PLAYER_CNT   = $clog2(MAX_PLAYER_CNT + 1);   // 玩家数量加上 1(NPC) 后，对 2 取对数（向上取整）
-parameter LOG2_PIECE_TYPE_CNT   = 2;   // 棋子种类数量对 2 取对数（向上取整）
-parameter LOG2_MAX_TROOP        = 9;   // 格子最大兵力数对 2 取对数（向上取整）
-parameter LOG2_MAX_ROUND        = 12;  // 允许的最大回合数对 2 取对数（向上取整）
-parameter LOG2_MAX_CURSOR_TYPE  = 2;   // 光标种类数对 2 取对数（向上取整）
+parameter LOG2_PIECE_TYPE_CNT   = 2;   // 棋子种类数量，对 2 取对数（向上取整）
+parameter LOG2_MAX_TROOP        = 9;   // 格子最大兵力数，对 2 取对数（向上取整）
+parameter LOG2_MAX_ROUND        = 12;  // 允许的最大回合数，对 2 取对数（向上取整）
+parameter LOG2_MAX_CURSOR_TYPE  = 2;   // 光标种类数，对 2 取对数（向上取整）
+parameter MAX_STEP_TIME         = 15;  // 每次操作最长允许时间
+parameter LOG2_MAX_STEP_TIME    = $clog2(MAX_STEP_TIME);   // 每次操作最长允许时间，对 2 取对数（向上取整）
 // vga 相关
 parameter VGA_WIDTH = 10;
 parameter HSIZE     = 640;
@@ -216,7 +218,9 @@ Game_Player #(
         .LOG2_PIECE_TYPE_CNT   (LOG2_PIECE_TYPE_CNT), 
         .LOG2_MAX_TROOP        (LOG2_MAX_TROOP), 
         .LOG2_MAX_ROUND        (LOG2_MAX_ROUND),
-        .LOG2_MAX_CURSOR_TYPE  (LOG2_MAX_CURSOR_TYPE)
+        .LOG2_MAX_CURSOR_TYPE  (LOG2_MAX_CURSOR_TYPE),
+        .MAX_STEP_TIME         (MAX_STEP_TIME),
+        .LOG2_MAX_STEP_TIME    (LOG2_MAX_STEP_TIME)
     ) game_player (
         //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
         .cursor_h_o_test       (cursor_h_o_test),
