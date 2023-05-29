@@ -433,14 +433,27 @@ endtask
 
 //// [游戏显示部分 BEGIN]
 logic [15:0] address;//ram地址
+logic [15:0] numaddress;
 logic [31:0] bluecity_ramdata;
 logic [31:0] bluecrown_ramdata;
 logic [31:0] redcity_ramdata;
 logic [31:0] redcrown_ramdata;
 logic [31:0] mountain_ramdata;
 logic [31:0] neutralcity_ramdata;
+logic [31:0] blue_ramdata;
+logic [31:0] red_ramdata;
 logic [31:0] number1_ramdata;
-logic [31:0] white_ramdata;//该地址对应的ram中各类棋子的地址
+logic [31:0] number0_ramdata;
+logic [31:0] number2_ramdata;
+logic [31:0] number3_ramdata;
+logic [31:0] number4_ramdata;
+logic [31:0] number5_ramdata;
+logic [31:0] number6_ramdata;
+logic [31:0] number7_ramdata;
+logic [31:0] number8_ramdata;
+logic [31:0] number9_ramdata;
+logic [31:0] white_ramdata;
+logic [31:0] numberdata;
 logic [31:0] ramdata;//选择后的用作输出的ram数据
 logic [31:0] indata = 32'b0;//用于为ram输入赋值（没用）
 logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;//取模后的v
@@ -450,10 +463,16 @@ logic [7:0] cur_h;//从像素坐标转换到数组h坐标
 logic is_gen;
 logic [7:0] cur_owner;
 logic [7:0] cur_piecetype;
+logic [8:0] cur_troop;
+logic [3:0] cur_hundreds;
+logic [3:0] cur_tens;
+logic [3:0] cur_ones;
 assign cur_owner = cells[cur_h][cur_v].owner;
 assign cur_piecetype = cells[cur_h][cur_v].piece_type;
+assign cur_troop = cells[cur_h][cur_v].troop;
 int cursor_array [0:9] = '{'d40, 'd80, 'd120, 'd160, 'd200, 'd240, 'd280, 'd320, 'd360, 'd400};
 assign address = vdata_to_ram*40 + hdata_to_ram;
+
 always_comb begin
     if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
     &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
@@ -473,6 +492,15 @@ always_comb begin
         gen_red = 0;
         gen_green = 0;
         gen_blue = 0;
+    end
+end
+always_comb begin
+    if (hdata_to_ram <= 17) begin
+        numaddress = (vdata_to_ram)*40+hdata_to_ram+6;
+    end else if (hdata_to_ram >= 23) begin
+        numaddress = (vdata_to_ram)*40+hdata_to_ram-6;
+    end else begin 
+        numaddress = (vdata_to_ram)*40+hdata_to_ram;
     end
 end
 // //通过打表避免使用除法取模，找到对应ram中的坐标和棋盘坐标
@@ -555,6 +583,77 @@ always_comb begin
     end
 end
 always_comb begin
+    if (hdata_to_ram <= 17) begin
+        if (cur_hundreds == 0) begin
+            numberdata = number0_ramdata;
+        end else if (cur_hundreds == 1) begin
+            numberdata = number1_ramdata;
+        end else if (cur_hundreds == 2) begin
+            numberdata = number2_ramdata;
+        end else if (cur_hundreds == 3) begin
+            numberdata = number3_ramdata;
+        end else if (cur_hundreds == 4) begin
+            numberdata = number4_ramdata;
+        end else if (cur_hundreds == 5) begin
+            numberdata = number5_ramdata;
+        end else if (cur_hundreds == 6) begin
+            numberdata = number6_ramdata;
+        end else if (cur_hundreds == 7) begin
+            numberdata = number7_ramdata;
+        end else if (cur_hundreds == 8) begin
+            numberdata = number8_ramdata;
+        end else begin
+            numberdata = number9_ramdata;
+        end
+    end
+    else if (hdata_to_ram >= 23) begin
+        if (cur_ones == 0) begin
+            numberdata = number0_ramdata;
+        end else if (cur_ones == 1) begin
+            numberdata = number1_ramdata;
+        end else if (cur_ones == 2) begin
+            numberdata = number2_ramdata;
+        end else if (cur_ones == 3) begin
+            numberdata = number3_ramdata;
+        end else if (cur_ones == 4) begin
+            numberdata = number4_ramdata;
+        end else if (cur_ones == 5) begin
+            numberdata = number5_ramdata;
+        end else if (cur_ones == 6) begin
+            numberdata = number6_ramdata;
+        end else if (cur_ones == 7) begin
+            numberdata = number7_ramdata;
+        end else if (cur_ones == 8) begin
+            numberdata = number8_ramdata;
+        end else begin
+            numberdata = number9_ramdata;
+        end            
+    end
+    else begin
+        if (cur_tens == 0) begin
+            numberdata = number0_ramdata;
+        end else if (cur_tens == 1) begin
+            numberdata = number1_ramdata;
+        end else if (cur_tens == 2) begin
+            numberdata = number2_ramdata;
+        end else if (cur_tens == 3) begin
+            numberdata = number3_ramdata;
+        end else if (cur_tens == 4) begin
+            numberdata = number4_ramdata;
+        end else if (cur_tens == 5) begin
+            numberdata = number5_ramdata;
+        end else if (cur_tens == 6) begin
+            numberdata = number6_ramdata;
+        end else if (cur_tens == 7) begin
+            numberdata = number7_ramdata;
+        end else if (cur_tens == 8) begin
+            numberdata = number8_ramdata;
+        end else begin
+            numberdata = number9_ramdata;
+        end
+    end
+end
+always_comb begin
     // if (cur_owner == NPC && cur_piecetype == TERRITORY) begin
     //     is_gen = 1;
     //     ramdata = 0;
@@ -580,10 +679,11 @@ always_comb begin
     //     is_gen = 1;
     //     ramdata = 0;
     // // end
-    if (number1_ramdata[31:24]!=0) begin//恒定显示为1，不要数字删了即可
+    if (cur_troop!=0 && numberdata[31:24] == 255) begin
         is_gen = 1;
-        ramdata = number1_ramdata;
-    end else if (cur_owner == NPC) begin
+        ramdata = numberdata;
+    end else 
+    if (cur_owner == NPC) begin
         if (cur_piecetype == CITY) begin
             is_gen = 1;
             ramdata = neutralcity_ramdata;
@@ -602,8 +702,8 @@ always_comb begin
             is_gen = 1;
             ramdata = redcity_ramdata;
         end else begin
-            is_gen = 0;
-            ramdata = 0;
+            is_gen = 1;
+            ramdata = red_ramdata;
         end
     end else if (cur_owner == BLUE) begin
         if (cur_piecetype == CROWN) begin
@@ -613,8 +713,8 @@ always_comb begin
             is_gen = 1;
             ramdata = bluecity_ramdata;
         end else begin
-            is_gen = 0;
-            ramdata = 0;
+            is_gen = 1;
+            ramdata = blue_ramdata;
         end
     end else begin
         is_gen = 0;
@@ -632,7 +732,92 @@ end
 //     .data(indata),
 //     .wren(0),
 //     .q(white_ramdata)
-// );    
+// ); 
+Number_Transfer  #(
+    .LOG2_MAX_TROOP(LOG2_MAX_TROOP)
+) number_transfer(
+    .number(cur_troop),
+    .hundreds(cur_hundreds),
+    .tens(cur_tens),
+    .ones(cur_ones) 
+);
+ram_number0 ram_number0_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number0_ramdata)  
+);
+ram_number1 ram_number1_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number1_ramdata)  
+);
+ram_number2 ram_number2_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number2_ramdata)  
+);   
+ram_number3 ram_number3_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number3_ramdata)  
+);  
+ram_number4 ram_number4_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number4_ramdata)  
+);  
+ram_number5 ram_number5test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number5_ramdata)  
+);  
+ram_number6 ram_number6_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number6_ramdata)  
+);  
+ram_number7 ram_number7_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number7_ramdata)  
+);  
+ram_number8 ram_number8_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number8_ramdata)  
+);  
+ram_number9 ram_number9_test (
+    .address(numaddress),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(number9_ramdata)  
+);  
+ram_blue ram_blue_test (
+    .address(address),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(blue_ramdata)  
+);
 ram_bluecity ram_bluecity_test (
     .address(address),
     .clock(clk_100M),
@@ -640,19 +825,19 @@ ram_bluecity ram_bluecity_test (
     .wren(0),
     .q(bluecity_ramdata)  
 );
-ram_number1 ram_number1_test (
-    .address(address),
-    .clock(clk_100M),
-    .data(indata),
-    .wren(0),
-    .q(number1_ramdata)  
-);
 ram_bluecrown ram_bluecrown_test (
     .address(address),
     .clock(clk_100M),
     .data(indata),
     .wren(0),
     .q(bluecrown_ramdata)
+);
+ram_red ram_red_test (
+    .address(address),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(red_ramdata)  
 );
 ram_redcity ram_redcity_test (
     .address(address),
