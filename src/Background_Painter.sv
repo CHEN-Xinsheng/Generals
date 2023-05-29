@@ -13,9 +13,9 @@ always_comb begin
 	   || vdata == 40 || vdata==80 || vdata==120 || vdata == 160 || vdata == 200 
 	   || vdata==240 || vdata==280 || vdata == 320 || vdata==360 || vdata==400 || vdata==440) 
 	   && hdata>=40 && hdata<=440 && vdata>=40 && vdata<=440) begin
-		video_red = 255;
-		video_green = 255;
-		video_blue = 255;
+		video_red = 220;
+		video_green = 220;
+		video_blue = 220;
 	end else begin 
 		video_red = 0;
 		video_green = 0;

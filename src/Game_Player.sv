@@ -306,6 +306,8 @@ logic [31:0] redcity_ramdata;
 logic [31:0] redcrown_ramdata;
 logic [31:0] mountain_ramdata;
 logic [31:0] neutralcity_ramdata;
+logic [31:0] blue_ramdata;
+logic [31:0] red_ramdata;
 logic [31:0] number1_ramdata;
 logic [31:0] number0_ramdata;
 logic [31:0] number2_ramdata;
@@ -566,8 +568,8 @@ always_comb begin
             is_gen = 1;
             ramdata = redcity_ramdata;
         end else begin
-            is_gen = 0;
-            ramdata = 0;
+            is_gen = 1;
+            ramdata = red_ramdata;
         end
     end else if (cur_owner == BLUE) begin
         if (cur_piecetype == CROWN) begin
@@ -577,8 +579,8 @@ always_comb begin
             is_gen = 1;
             ramdata = bluecity_ramdata;
         end else begin
-            is_gen = 0;
-            ramdata = 0;
+            is_gen = 1;
+            ramdata = blue_ramdata;
         end
     end else begin
         is_gen = 0;
@@ -675,6 +677,13 @@ ram_number9 ram_number9_test (
     .wren(0),
     .q(number9_ramdata)  
 );  
+ram_blue ram_blue_test (
+    .address(address),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(blue_ramdata)  
+);
 ram_bluecity ram_bluecity_test (
     .address(address),
     .clock(clk_100M),
@@ -688,6 +697,13 @@ ram_bluecrown ram_bluecrown_test (
     .data(indata),
     .wren(0),
     .q(bluecrown_ramdata)
+);
+ram_red ram_red_test (
+    .address(address),
+    .clock(clk_100M),
+    .data(indata),
+    .wren(0),
+    .q(red_ramdata)  
 );
 ram_redcity ram_redcity_test (
     .address(address),
