@@ -324,8 +324,8 @@ logic [31:0] ramdata;//选择后的用作输出的ram数据
 logic [31:0] indata = 32'b0;//用于为ram输入赋值（没用）
 logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;//取模后的v
 logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;//取模后的h
-logic [7:0] cur_v;//从像素坐标转换到数组v坐标
-logic [7:0] cur_h;//从像素坐标转换到数组h坐标
+logic [LOG2_BORAD_WIDTH - 1:0] cur_v;//从像素坐标转换到数组v坐标
+logic [LOG2_BORAD_WIDTH - 1:0] cur_h;//从像素坐标转换到数组h坐标
 logic is_gen;
 logic [7:0] cur_owner;
 logic [7:0] cur_piecetype;
@@ -369,7 +369,23 @@ always_comb begin
         numaddress = (vdata_to_ram)*40+hdata_to_ram;
     end
 end
-// //通过打表避免使用除法取模，找到对应ram中的坐标和棋盘坐标
+//通过打表避免使用除法取模，找到对应ram中的坐标和棋盘坐标
+// Coordinate_Transfer #(
+//         .VGA_WIDTH(VGA_WIDTH),
+//         .LOG2_BORAD_WIDTH(LOG2_BORAD_WIDTH)
+//     ) coordinate_transfer_h (
+//         .coordinate(hdata),
+//         .coordinate_to_ram(hdata_to_ram),
+//         .coordinate_in_board(cur_h)
+// );
+// Coordinate_Transfer #(
+//         .VGA_WIDTH(VGA_WIDTH),
+//         .LOG2_BORAD_WIDTH(LOG2_BORAD_WIDTH)
+//     ) coordinate_transfer_v (
+//         .coordinate(vdata),
+//         .coordinate_to_ram(vdata_to_ram),
+//         .coordinate_in_board(cur_v)
+//);
 always_comb begin
     if (hdata>=0 && hdata<40) begin
         hdata_to_ram = hdata;
@@ -448,6 +464,7 @@ always_comb begin
         cur_v = 0;
     end
 end
+
 always_comb begin
     if (hdata_to_ram <= 17) begin
         if (cur_hundreds == 0) begin
