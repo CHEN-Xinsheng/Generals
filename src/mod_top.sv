@@ -236,7 +236,7 @@ Game_Player #(
 
         //// input
         // 时钟信号和重置信号
-        .clk_100M          (clk_100M),
+        .clock             (clk_50M),
         .start             (clock_btn),
         .reset             (reset_btn),
         .clk_vga           (clk_vga),

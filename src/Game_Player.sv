@@ -23,7 +23,7 @@ module Game_Player
     //// [TEST END]
 
     //// input
-    input wire                    clk_100M,
+    input wire                    clock,
     input wire                    start,              // 游戏开始
     input wire                    reset,
     input wire                    clk_vga,
@@ -162,7 +162,7 @@ assign operation_o_test      = operation;                               // 当�
 
 //// [游戏逻辑部分 BEGIN]
 // 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
-always_ff @ (posedge clk_100M, posedge reset) begin
+always_ff @ (posedge clock, posedge reset) begin
     if (reset) begin
         state <= READY;
         // TODO 开始计时
@@ -766,7 +766,7 @@ end
 
 // ram_white ram_white (
 //     .address(address),
-//     .clock(clk_100M),
+//     .clock(clock),
 //     .data(indata),
 //     .wren(0),
 //     .q(white_ramdata)
@@ -781,126 +781,126 @@ Number_Transfer  #(
 );
 ram_number0 ram_number0_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number0_ramdata)  
 );
 ram_number1 ram_number1_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number1_ramdata)  
 );
 ram_number2 ram_number2_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number2_ramdata)  
 );   
 ram_number3 ram_number3_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number3_ramdata)  
 );  
 ram_number4 ram_number4_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number4_ramdata)  
 );  
 ram_number5 ram_number5test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number5_ramdata)  
 );  
 ram_number6 ram_number6_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number6_ramdata)  
 );  
 ram_number7 ram_number7_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number7_ramdata)  
 );  
 ram_number8 ram_number8_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number8_ramdata)  
 );  
 ram_number9 ram_number9_test (
     .address(numaddress),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(number9_ramdata)  
 );  
 ram_blue ram_blue_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(blue_ramdata)  
 );
 ram_bluecity ram_bluecity_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(bluecity_ramdata)  
 );
 ram_bluecrown ram_bluecrown_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(bluecrown_ramdata)
 );
 ram_red ram_red_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(red_ramdata)  
 );
 ram_redcity ram_redcity_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(redcity_ramdata)
 );
 ram_redcrown ram_redcrown_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(redcrown_ramdata)
 );
 ram_neutralcity ram_neutralcity_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(neutralcity_ramdata)
 );
 ram_mountain ram_mountain_test (
     .address(address),
-    .clock(clk_100M),
+    .clock(clock),
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)
