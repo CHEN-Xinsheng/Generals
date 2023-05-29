@@ -106,41 +106,41 @@ Player  next_player_table [MAX_PLAYER_CNT - 1:0];   // 每个玩家的下一玩�
 initial begin
     next_player_table[RED]  = BLUE;
     next_player_table[BLUE] = RED;
-    // default case
-    for (int i = 0; i < MAX_PLAYER_CNT; ++i) begin
+    // assert 以下情况在游戏中不应出现
+    for (byte i = 0; i < MAX_PLAYER_CNT; ++i) begin
         if (i != RED && i != BLUE) begin
-            next_player_table[i] = NPC;   // assert 这种情况在游戏中不会出现
+            next_player_table[i] = NPC;   
         end
     end
 end
 
-// 游戏数据初始化
-initial begin
-    // 各方王城坐标
-    crowns_pos[RED]  = '{'d2, 'd3};
-    crowns_pos[BLUE] = '{'d8, 'd7};
-    // 初始化棋盘
-    for (int h = 0; h < BORAD_WIDTH; h++) begin
-        for (int v = 0; v < BORAD_WIDTH; v++) begin
-            if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
-                cells[h][v] = '{RED, CROWN, 'h57};
-            end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
-                cells[h][v] = '{BLUE, CROWN, 'h59};
-            end else begin
-                // 初始化为 RED 玩家的 CITY 类型，兵力 0x43
-                cells[h][v] = '{RED, CITY, 'h43};
-            end
-        end
-    end
+// // 游戏数据初始化
+// initial begin
+//     // 各方王城坐标
+//     crowns_pos[RED]  = '{'d2, 'd3};
+//     crowns_pos[BLUE] = '{'d8, 'd7};
+//     // 初始化棋盘
+//     for (int h = 0; h < BORAD_WIDTH; h++) begin
+//         for (int v = 0; v < BORAD_WIDTH; v++) begin
+//             if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
+//                 cells[h][v] = '{RED, CROWN, 'h57};
+//             end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
+//                 cells[h][v] = '{BLUE, CROWN, 'h59};
+//             end else begin
+//                 // 初始化为 RED 玩家的 CITY 类型，兵力 0x43
+//                 cells[h][v] = '{RED, CITY, 'h43};
+//             end
+//         end
+//     end
 
-    operation      = NONE;              // 初始时，操作队列置空
-    current_player = Player'(1);        // 先手玩家
-    cursor         = '{'d0, 'd0};
-    cursor_type    = CHOOSE;
-    step_cnt       = 'd0;
-    winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
-    state          = IN_ROUND;          // 初始游戏状态为回合进行中（TODO：更改）
-end
+//     operation      = NONE;              // 初始时，操作队列置空
+//     current_player = Player'(1);        // 先手玩家
+//     cursor         = '{'d0, 'd0};
+//     cursor_type    = CHOOSE;
+//     step_cnt       = 'd0;
+//     winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
+//     state          = IN_ROUND;          // 初始游戏状态为回合进行中（TODO：更改）
+// end
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
 assign cursor_h_o_test       = cursor.h;                                // 当前光标位置的横坐标（h 坐标）
@@ -406,9 +406,11 @@ task automatic ready();
                 // RED
                 end else if (2 <= h && h <= 5 && 2 <= v && v <= 5) begin
                     cells[h][v] <= '{RED, CITY, 'd25};
+                // BLUE
+                end else if (7 <= h && h <= 9 && 5 <= v && v <= 9) begin
+                    cells[h][v] <= '{BLUE, CITY, 'd37};
                 // NPC TERRITORY
                 end else begin
-                    // 初始化为 RED 玩家的 CITY 类型，兵力 67
                     cells[h][v] <= '{NPC, TERRITORY, 'd0};
                 end
             end
