@@ -21,6 +21,7 @@ module Game_Player
     output wire [LOG2_MAX_CURSOR_TYPE -1: 0]    cursor_type_o_test,      // 当前光标类型
     output wire [2: 0]                          operation_o_test,        // 当前操作队列
     output wire [LOG2_MAX_STEP_TIME -1: 0]      step_timer_o_test,       // 当前回合剩余时间
+    output wire [LOG2_MAX_ROUND - 1: 0]         round_o_test,            // 当前回合数
     //// [TEST END]
 
     //// input
@@ -156,7 +157,8 @@ assign current_player_o_test = current_player;                          // 当�
 assign next_player_o_test    = next_player_table[current_player];       // 下一回合玩家
 assign cursor_type_o_test    = cursor_type;                             // 当前光标类型
 assign operation_o_test      = operation;                               // 当前操作队列
-assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间 
+assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间
+assign round_o_test          = round;                                   // 当前回合数
 // [TEST END]
 
 //// [游戏内部数据 END]
