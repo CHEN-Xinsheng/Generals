@@ -1,6 +1,6 @@
 from PIL import Image  
 import numpy as np  
-Image = Image.open('bluecity.png')   
+Image = Image.open('neutralcity.png')   
 Image_array = np.array(Image) 
 print(Image_array.shape)
 from pprint import pprint
@@ -12,7 +12,7 @@ for i in range(40):
     for j in range(40):
         for k in range(4):
             contents.append(int(Image_array[i][j][k]))
-with open('bluecity.mif', 'w') as wf:
+with open('neutralcity.mif', 'w') as wf:
     print('WIDTH = 32;', file=wf)
     print('DEPTH = 6400;', file=wf)
     print('ADDRESS_RADIX = HEX;', file=wf)

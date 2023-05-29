@@ -911,6 +911,10 @@ always_comb begin
        || vdata == 40 || vdata == 80 || vdata == 120 || vdata == 160 || vdata == 200 
        || vdata == 240 || vdata == 280 || vdata == 320 || vdata == 360 || vdata == 400 || vdata == 440) begin
         use_gen = 0;
+    end 
+    else if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
+    &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
+        use_gen = 1;
     end else if (is_gen) begin
         use_gen = 1;
     end else begin
