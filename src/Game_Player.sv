@@ -20,6 +20,7 @@ module Game_Player
 
     //// input
     input wire                    clk_100M,
+    input wire                    start,              // 游戏开始
     input wire                    reset,
     input wire                    clk_vga,
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
@@ -37,7 +38,7 @@ module Game_Player
     output wire [7: 0]            gen_red,
     output wire [7: 0]            gen_green,
     output wire [7: 0]            gen_blue,
-    output wire                   use_gen    // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
+    output wire                   use_gen             // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 );
 
 //// [游戏内部数据 BEGIN]
@@ -75,10 +76,11 @@ typedef enum logic [2:0] {
 } Operation;
 // 游戏状态
 typedef enum logic [2:0] {
-    IN_ROUND      = 3'b000,  // 回合内
-    CHECK_WIN     = 3'b001,  // 判断胜负
-    ROUND_SWITCH  = 3'b010,  // 回合切换中
-    GAME_OVER     = 3'b011   // 游戏结束
+    READY,         // 游戏准备开始
+    IN_ROUND,      // 回合内
+    CHECK_WIN,     // 判断胜负
+    ROUND_SWITCH,  // 回合切换中
+    GAME_OVER      // 游戏结束
 } State;
 
 
@@ -151,25 +153,32 @@ assign cursor_type_o_test    = cursor_type;                                // �
 
 
 //// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
-always_ff @ (posedge clk_100M) begin
-    // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
-    if (keyboard_ready) begin
-        // 缓存一次未结算的操作
-        if (keyboard_data <= 'b101) begin
-            operation <= Operation'(keyboard_data);
-        end
-        // 并给键盘处理模块返回读取已完成的信号
-        keyboard_read_fin <= 'b1;
-    // 否则，本周期运行游戏逻辑
+always_ff @ (posedge clk_100M, posedge reset) begin
+    if (reset) begin
+        state <= READY;
+        // TODO 开始计时
     end else begin
-        keyboard_read_fin <= 'b0;
-        casez (state)
-            IN_ROUND:     in_round();
-            CHECK_WIN:    check_win();
-            ROUND_SWITCH: round_switch();
-            GAME_OVER:    game_over();
-            default: ; // assert 这种情况不应出现
-        endcase
+        // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
+        if (keyboard_ready) begin
+            // 缓存一次未结算的操作
+            if (keyboard_data <= 'b101) begin
+                operation <= Operation'(keyboard_data);
+            end
+            // 并给键盘处理模块返回读取已完成的信号
+            keyboard_read_fin <= 'b1;
+        // 否则，本周期运行游戏逻辑
+        end else begin
+            keyboard_read_fin <= 'b0;
+            casez (state)
+                READY:        ready();
+                IN_ROUND:     in_round();
+                CHECK_WIN:    check_win();
+                ROUND_SWITCH: round_switch();
+                GAME_OVER:    ;
+                default: ; // assert 这种情况不应出现
+            endcase
+        end
+        // TODO 计时，用于生成随机初始局面
     end
 end
 
@@ -177,6 +186,9 @@ end
 //// [游戏逻辑部分 BEGIN]
 // 回合进行中
 task automatic in_round();
+    // 如果已超时，直接切换回合
+    // TODO
+    
     // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空
     if (operation != NONE) begin
         casez (cursor_type)
@@ -224,14 +236,6 @@ task automatic in_round();
                     D: // 右移
                         if (cursor.h <= BORAD_WIDTH - 2)
                             move_piece_to('{cursor.h + 1, cursor.v    });
-                        // // 如果操作合法，胜负判断
-                        // if (check_win()) begin
-                        //     // 如果已分出胜负，那么标记游戏结束
-                        //     game_over();
-                        // end else begin
-                        //     // 如果未分出胜负，回合切换
-                        //     round_switch();
-                        // end
                     default: ; // assert 这种情况不应出现
                 endcase
             end
@@ -254,9 +258,9 @@ task automatic move_piece_to(Position target_pos);
             // 如果目标位置是 NPC 空地或 NPC 城市
             TERRITORY, CITY: begin
                 if (cursor_type == MOVE_TOTAL) begin
-                    update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1);
+                    update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
                 end else begin
-                    update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1);
+                    update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
                 end
                 // 接下来进行回合切换
                 state <= ROUND_SWITCH;
@@ -268,18 +272,18 @@ task automatic move_piece_to(Position target_pos);
     // 如果目标位置属于己方
     end else if (cells[target_pos.h][target_pos.v].owner == current_player) begin
         if (cursor_type == MOVE_TOTAL) begin
-            update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1);
+            update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
         end else begin
-            update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1);
+            update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
         end
         // 接下来进行回合切换
         state <= ROUND_SWITCH;
     // 如果目标位置属于其他玩家
     end else begin
         if (cursor_type == MOVE_TOTAL) begin
-            update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1);
+            update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
         end else begin
-            update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1);
+            update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
         end
         // 接下来进行胜负判断
         state <= CHECK_WIN;
@@ -287,13 +291,13 @@ task automatic move_piece_to(Position target_pos);
 endtask
 
 // 基于派出的兵力，更新源位置和目标位置兵力，并可能更新目标位置归属方
-task automatic update_troop_and_owner(logic [LOG2_MAX_TROOP - 1: 0] dispatched_troop);
+task automatic update_troop_and_owner(logic [LOG2_MAX_TROOP - 1: 0] dispatched_troop, Position target_pos);
     // 如果目标位置属于己方
     if (cells[target_pos.h][target_pos.v].owner == current_player) begin
         cells[target_pos.h][target_pos.v].troop <= cells[target_pos.h][target_pos.v].troop + dispatched_troop;
         cells[cursor.    h][cursor    .v].troop <= cells[cursor.    h][cursor    .v].troop - dispatched_troop;
     // 如果目标位置属于其他玩家，或者目标位置是 NPC 的空地/城市
-    end else if begin
+    end else begin
         // 如果派出的兵力严格大于对方兵力
         if (dispatched_troop > cells[target_pos.h][target_pos.v].troop) begin
             // 目标位置归属方更改
@@ -310,10 +314,16 @@ task automatic update_troop_and_owner(logic [LOG2_MAX_TROOP - 1: 0] dispatched_t
     end
 endtask
 
-// 胜负判断
+// 胜负判断，并记录胜者（如果胜负已分）
 task automatic check_win();
-    // 进行胜负判断，如果已分出胜负，记录胜者
-
+    // 如果某方王城位置归属不再是自己，游戏结束
+    if          (cells[crowns_pos[RED ].h][crowns_pos[RED ].v].owner != RED)  begin
+        winner <= BLUE;
+        state  <= GAME_OVER;
+    end else if (cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].owner != BLUE) begin
+        winner <= RED;
+        state  <= GAME_OVER;
+    end
 endtask
 
 // 回合切换
@@ -331,10 +341,18 @@ task automatic round_switch();
     // TODO 重启计时器
 endtask
 
-// 游戏结束
-task automatic game_over();
-    // （此时已经分出胜负）切换游戏状态到结束状态
-   
+
+// 等待开始游戏
+task automatic ready();
+    // 如果此时开始按钮处于按下状态，那么开始游戏
+    if (start) begin
+        // TODO 生成随机初始局面
+
+        // 操作队列初始化为空
+        operation <= NONE;
+        // 开始游戏
+        state <= IN_ROUND;
+    end
 endtask 
 
 //// [游戏逻辑部分 END]

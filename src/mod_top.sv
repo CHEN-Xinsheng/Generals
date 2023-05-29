@@ -228,6 +228,7 @@ Game_Player #(
         //// input
         // 时钟信号和重置信号
         .clk_100M          (clk_100M),
+        .start             (clock_btn),
         .reset             (reset_btn),
         .clk_vga           (clk_vga),
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
