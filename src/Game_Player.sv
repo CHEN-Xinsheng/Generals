@@ -119,32 +119,28 @@ initial begin
     end
 end
 
-// 游戏数据初始化
+// 初始游戏界面（按下 RESET 前）显示的数据
 initial begin
-    // 各方王城坐标
-    crowns_pos[RED]  = '{'d2, 'd3};
-    crowns_pos[BLUE] = '{'d8, 'd7};
     // 初始化棋盘
     for (int h = 0; h < BORAD_WIDTH; h++) begin
         for (int v = 0; v < BORAD_WIDTH; v++) begin
-            if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
-                cells[h][v] = '{RED, CROWN, 'h57};
-            end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
-                cells[h][v] = '{BLUE, CROWN, 'h59};
-            end else begin
-                // 初始化为 RED 玩家的 CITY 类型，兵力 0x43
-                cells[h][v] = '{RED, CITY, 'h43};
-            end
+            if (h == 4 && 3 <= v && v <= 8) 
+                cells[h][v] = '{NPC, MOUNTAIN, 'h0};
+            else
+                cells[h][v] = '{NPC, TERRITORY, 'h0};
         end
     end
-
-    operation      = NONE;              // 初始时，操作队列置空
-    current_player = Player'(1);        // 先手玩家
+    step_timer <= MAX_STEP_TIME;
     cursor         = '{'d0, 'd0};
     cursor_type    = CHOOSE;
     step_cnt       = 'd0;
+    // 以下是不显示的初始信息
+    crowns_pos[RED]  = '{'d2, 'd3};
+    crowns_pos[BLUE] = '{'d8, 'd7};
+    operation      = NONE;              // 初始时，操作队列置空
+    current_player = Player'(1);        // 先手玩家
     winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
-    state          = IN_ROUND;          // 初始游戏状态为回合进行中（TODO：更改）
+    state          = READY;             // 初始游戏状态为回合进行中
 end
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
@@ -198,7 +194,7 @@ end
 // step_timer 倒计时秒表
 logic [26: 0] step_timer_50M;
 task step_timer_tick();
-    if (step_timer_50M == 'd49_999_999) begin
+    if (step_timer_50M == 50_000_000 - 1) begin
         step_timer_50M <= 0;
         step_timer     <= step_timer - 1;
     end else begin
