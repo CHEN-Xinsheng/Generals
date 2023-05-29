@@ -138,7 +138,6 @@ initial begin
     cursor         = '{'d0, 'd0};
     cursor_type    = CHOOSE;
     step_cnt       = 'd0;
-    round          = 'd1;               // 初始回合（从 1 开始）
     winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
     state          = IN_ROUND;          // 初始游戏状态为回合进行中（TODO：更改）
 end
@@ -344,11 +343,44 @@ task automatic round_switch();
     cursor_type    <= CHOOSE;
     // 更新 step_cnt （round 随之自动更新）
     step_cnt <= step_cnt + 1;
-    // TODO 如果 round 达到特定值，增加兵力
-
+    // 每回合结束时，增加兵力
+    if (step_cnt[0] == 1) begin
+        // 每 15 回合结束时，所有玩家的格子增加 1 兵力
+        if (round[3:0] == 4'b0000) begin
+            for (byte h = 0; h < BORAD_WIDTH; ++h) begin
+                for (byte v = 0; v < BORAD_WIDTH; ++v) begin
+                    if (belong_to_player(h, v)) begin
+                        cells[h][v].troop <= cells[h][v].troop + 1;
+                    end
+                end
+            end
+        // 如果是普通的回合结束，所有玩家的王城和城市均增加 1 兵力
+        end else begin
+            for (byte h = 0; h < BORAD_WIDTH; ++h) begin
+                for (byte v = 0; v < BORAD_WIDTH; ++v) begin
+                    if (is_player_city_or_crown(h, v)) begin
+                        cells[h][v].troop <= cells[h][v].troop + 1;
+                    end
+                end
+            end
+        end
+    end
     // TODO 重启计时器
 endtask
 
+function automatic logic belong_to_player (logic [LOG2_BORAD_WIDTH - 1: 0] h, logic [LOG2_BORAD_WIDTH - 1: 0] v);
+    if (cells[h][v].owner == RED || cells[h][v].owner == BLUE)
+        return 1;
+    else
+        return 0;
+endfunction
+
+function automatic logic is_player_city_or_crown (logic [LOG2_BORAD_WIDTH - 1: 0] h, logic [LOG2_BORAD_WIDTH - 1: 0] v);
+    if (belong_to_player(h, v) && (cells[h][v].piece_type == CITY || cells[h][v].piece_type == CROWN))
+        return 1;
+    else 
+        return 0;
+endfunction
 
 // 等待开始游戏
 task automatic ready();
@@ -361,17 +393,23 @@ task automatic ready();
         // 初始化棋盘
         for (int h = 0; h < BORAD_WIDTH; h++) begin
             for (int v = 0; v < BORAD_WIDTH; v++) begin
+                // CROWN
                 if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
-                    cells[h][v] <= '{RED, CROWN, 'h57};
+                    cells[h][v] <= '{RED, CROWN, 'd87};
                 end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
-                    cells[h][v] <= '{BLUE, CROWN, 'h59};
-                end else if (h == 5) begin
-                    cells[h][v] <= '{NPC, TERRITORY, 'h0};
+                    cells[h][v] <= '{BLUE, CROWN, 'd89};
+                // NPC
                 end else if (v == 5) begin
-                    cells[h][v] <= '{NPC, CITY, 'h0};
+                    cells[h][v] <= '{NPC, CITY, 'd0};
+                end else if (h + v == 9 && h >= 6) begin
+                    cells[h][v] <= '{NPC, MOUNTAIN, 'd0};
+                // RED
+                end else if (2 <= h && h <= 5 && 2 <= v && v <= 5) begin
+                    cells[h][v] <= '{RED, CITY, 'd25};
+                // NPC TERRITORY
                 end else begin
-                    // 初始化为 RED 玩家的 CITY 类型，兵力 0x43
-                    cells[h][v] <= '{RED, CITY, 'h43};
+                    // 初始化为 RED 玩家的 CITY 类型，兵力 67
+                    cells[h][v] <= '{NPC, TERRITORY, 'd0};
                 end
             end
         end
@@ -381,7 +419,6 @@ task automatic ready();
         cursor         <= '{'d2, 'd3};      // TODO 坐标在先手玩家的王城
         cursor_type    <= CHOOSE;
         step_cnt       <= 'd0;
-        round          <= 'd1;              // 初始回合（从 1 开始）
         winner         <= NPC;              // 胜者，winner == NPC 表示尚未分出胜负
         // 开始游戏
         state <= IN_ROUND;

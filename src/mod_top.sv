@@ -108,7 +108,7 @@ dpy_scan u_dpy_scan (
 parameter BORAD_WIDTH           = 10;  // 棋盘宽度
 parameter LOG2_BORAD_WIDTH      = $clog2(BORAD_WIDTH);   // 棋盘宽度对 2 取对数（向上取整）
 parameter MAX_PLAYER_CNT        = 7;   // 玩家数量
-parameter LOG2_MAX_PLAYER_CNT   = $clog2(MAX_PLAYER_CNT + 1);   // 玩家数量对 2 取对数（向上取整）
+parameter LOG2_MAX_PLAYER_CNT   = $clog2(MAX_PLAYER_CNT + 1);   // 玩家数量加上 1(NPC) 后，对 2 取对数（向上取整）
 parameter LOG2_PIECE_TYPE_CNT   = 2;   // 棋子种类数量对 2 取对数（向上取整）
 parameter LOG2_MAX_TROOP        = 9;   // 格子最大兵力数对 2 取对数（向上取整）
 parameter LOG2_MAX_ROUND        = 12;  // 允许的最大回合数对 2 取对数（向上取整）
