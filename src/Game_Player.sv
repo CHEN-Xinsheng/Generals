@@ -558,7 +558,18 @@ always_comb begin
             gen_red = blue_ramdata[7:0];
             gen_green = blue_ramdata[15:8];
             gen_blue = blue_ramdata[23:16]; 
-        end           
+        end     
+    end else
+    if ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 && winner!=NPC) begin
+        if (winner == RED) begin
+            gen_red = red_ramdata[7:0];
+            gen_green = red_ramdata[15:8];
+            gen_blue = red_ramdata[23:16];
+        end else begin
+            gen_red = blue_ramdata[7:0];
+            gen_green = blue_ramdata[15:8];
+            gen_blue = blue_ramdata[23:16]; 
+        end     
     end else begin
         gen_red = 0;
         gen_green = 0;
@@ -823,7 +834,7 @@ always_comb begin
 end
 always_comb begin
     if ((((vdata <= 80 && vdata > 40) ||(vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0)
-    || ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 )) begin
+    || ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) || ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 )) begin
         is_gen = 1;
         ramdata = 0;
     end else
