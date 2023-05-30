@@ -114,7 +114,7 @@ def convert_to_mif(boards: List[Board], mif_file_path):
             BLUE CROWN     - 11
         """
         print(f'DEPTH = {32 * len(boards)};', file=f)   # word 的个数。每张棋盘 32 个 word（32 个特殊元素），有 len(boards) 张棋盘
-        print('ADDRESS_RADIX = DEC;', file=f)
+        print('ADDRESS_RADIX = HEX;', file=f)
         print('DATA_RADIX = BIN;', file=f)
 
         print('CONTENT BEGIN', file=f)
