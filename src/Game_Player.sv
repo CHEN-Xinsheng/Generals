@@ -47,10 +47,14 @@ module Game_Player
     output wire                   use_gen             // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 );
 
+// 常数
+localparam MAX_RANDOM_TIMER = 128; // 从多少张地图中随机抽取一张
+
+
 //// [游戏内部数据 BEGIN]
 // 玩家类型
 typedef enum logic [LOG2_MAX_PLAYER_CNT - 1:0]    {NPC, RED, BLUE} Player;
-// 每个棋子类型
+// 棋子类型
 typedef enum logic [LOG2_PIECE_TYPE_CNT - 1:0]    {TERRITORY,           MOUNTAIN,    CROWN,   CITY      } Piece;
                                                 // 普通领地（含空白格）， 山，         王城，    塔（城市）
 // 单元格结构体
@@ -100,7 +104,7 @@ Position                            cursor;             // 当前光标位置
 Cursor_type                         cursor_type;        // 光标所处模式：选择模式(0x)，行棋模式(1x)
 logic [LOG2_MAX_ROUND:     0]       step_cnt;           // 已经进行的行棋操作次数（包括超时，视为空操作）
 logic [LOG2_MAX_ROUND - 1: 0]       round;              // 当前回合（从 1 开始）
-Player                              winner;             // 胜者，该值仅当 state == GAME_OVER 时有效
+Player                              winner;             // 胜者，
 State                               state;              // 当前游戏状态
 logic [LOG2_MAX_STEP_TIME -1: 0]    step_timer;         // 当前回合剩余时间
 
@@ -121,26 +125,24 @@ end
 
 // 初始游戏界面（按下 RESET 前）显示的数据
 initial begin
-    // 初始化棋盘
+    // 初始游戏状态为等待开始
+    state = READY;
+    // 初始化棋盘。之后在随机生成开局棋盘时，未被填充的位置均为空格
     for (int h = 0; h < BORAD_WIDTH; h++) begin
         for (int v = 0; v < BORAD_WIDTH; v++) begin
-            if (h == 4 && 3 <= v && v <= 8) 
-                cells[h][v] = '{NPC, MOUNTAIN, 'h0};
-            else
-                cells[h][v] = '{NPC, TERRITORY, 'h0};
+            cells[h][v] = '{NPC, TERRITORY, 'h0};
         end
     end
-    step_timer <= MAX_STEP_TIME;
-    cursor         = '{'d0, 'd0};
-    cursor_type    = CHOOSE;
-    step_cnt       = 'd0;
-    // 以下是不显示的初始信息
+    // assert 以下值不会用到，因为在游戏开始时 (task ready() 中) 会被重写
     crowns_pos[RED]  = '{'d2, 'd3};
     crowns_pos[BLUE] = '{'d8, 'd7};
-    operation      = NONE;              // 初始时，操作队列置空
-    current_player = Player'(1);        // 先手玩家
-    winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
-    state          = READY;             // 初始游戏状态为回合进行中
+    operation      = NONE;          // 初始界面不显示
+    current_player = Player'(1);
+    cursor         = '{'d0, 'd0};
+    cursor_type    = CHOOSE;
+    winner         = NPC;           // 初始界面不显示
+    step_cnt       = 'd0;
+    step_timer     = MAX_STEP_TIME;
 end
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
@@ -165,7 +167,6 @@ assign round_o_test          = round;                                   // 当�
 always_ff @ (posedge clock, posedge reset) begin
     if (reset) begin
         state <= READY;
-        // TODO 开始计时
     end else begin
         // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
         if (keyboard_ready) begin
@@ -187,8 +188,17 @@ always_ff @ (posedge clock, posedge reset) begin
                 default: ; // assert 这种情况不应出现
             endcase
         end
-        // TODO 计时，用于生成随机初始局面
     end
+end
+
+// 抽签器（循环计数器），用于生成随机初始局面和抽签产生初始玩家
+logic [$clog2(MAX_RANDOM_TIMER) - 1: 0] random_timer;
+initial random_timer = 0;
+always_ff @ (posedge clock, posedge reset) begin
+    if (reset) 
+        random_timer <= 0;
+    else
+        random_timer <= random_timer + 1;
 end
 
 // step_timer 倒计时秒表
@@ -439,12 +449,16 @@ task automatic ready();
             end
         end
 
-        operation      <= NONE;             // 操作队列初始化为空
-        current_player <= Player'(1);       // TODO 先手玩家
-        cursor         <= '{'d2, 'd3};      // TODO 坐标在先手玩家的王城
+        operation      <= NONE;                         // 操作队列初始化为空
+        current_player <= Player'(random_timer[0]);     // 随机产生先手玩家
+        // TODO 坐标在先手玩家的王城
+        if (Player'(random_timer[0]) == RED) 
+            cursor <= '{'d2, 'd3};
+        else 
+            cursor <= '{'d8, 'd7};
         cursor_type    <= CHOOSE;
         step_cnt       <= 'd0;
-        winner         <= NPC;              // 胜者，winner == NPC 表示尚未分出胜负
+        winner         <= NPC;                          // 胜者，该值仅当 state == GAME_OVER 时有效
         // 开始游戏
         state <= IN_ROUND;
         // 重启计时器
