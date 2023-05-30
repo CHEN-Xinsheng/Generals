@@ -118,8 +118,8 @@ parameter LOG2_MAX_STEP_TIME    = $clog2(MAX_STEP_TIME);   // 每次操作最长
 // vga 相关
 parameter VGA_WIDTH = 10;
 parameter HSIZE     = 640;
-parameter HFP       = 688;
-parameter HSP       = 784;
+parameter HFP       = 656;
+parameter HSP       = 752;
 parameter HMAX      = 800;
 parameter VSIZE     = 480;
 parameter VFP       = 490;
