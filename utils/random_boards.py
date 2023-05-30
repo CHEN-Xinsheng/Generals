@@ -2,6 +2,7 @@ import random
 import datetime
 import argparse
 from pathlib import Path
+from typing import List
 from tqdm import tqdm
 from Board import *
 
@@ -92,10 +93,46 @@ def random_board(width, mountain_cnt, NPC_city_cnt):
 
     return board
 
-def convert_to_mif(boards, mif_file_path):
+def convert_to_mif(boards: List[Board], mif_file_path):
     """
     传入的参数为 Board 列表，生成 MIF 文件
     """
+
+    assert 32 * len(boards) <= 0xffff + 1  # 因为在 MIF 的 ADDR 只写了 4 位，所以 word 的数量必须不能大于 0xffff + 1
+    assert BOARD_WIDTH < 16  # 因为 (h, v) = (0xF, 0xF) 用于占位（即表示该格子为 NPC 普通领地），所以棋盘宽度不能达到 16 ，否则将产生冲突
+
+    def print_a_word(addr, h, v, type):
+        print('{0:04X}: {1:04b}{2:04b}{3:02b};'.format(addr, h, v, type), file=f)
+
+    with open(mif_file_path, 'w') as f:
+        print('WIDTH = 10;', file=f) # 每个 word 大小为 10 bit： h(4), v(4), type(2)
+        """
+        type:
+            NPC  MOUNTAIN  - 00
+            NPC  CITY      - 01
+            RED  CROWN     - 10
+            BLUE CROWN     - 11
+        """
+        print(f'DEPTH = {32 * len(boards)};', file=f)   # word 的个数。每张棋盘 32 个 word（32 个特殊元素），有 len(boards) 张棋盘
+        print('ADDRESS_RADIX = DEC;', file=f)
+        print('DATA_RADIX = BIN;', file=f)
+
+        print('CONTENT BEGIN', file=f)
+        addr = 0
+        for board in boards:
+            # 输出王城位置
+            print_a_word(addr, board.crowns[Player.RED ][0], board.crowns[Player.RED ][1], 0b10); addr += 1 # RED CROWN
+            print_a_word(addr, board.crowns[Player.BLUE][0], board.crowns[Player.BLUE][1], 0b11); addr += 1 # BLUE CROWN
+            # 输出山位置
+            for (h, v) in board.mountains:
+                print_a_word(addr, h, v, 0b00); addr += 1
+            # 输出 NPC 塔位置
+            for (h, v) in board.NPC_cities:
+                print_a_word(addr, h, v, 0b01); addr += 1
+            # 输出占位符
+            for _ in range(32 - 2 - len(board.mountains) - len(board.NPC_cities)):
+                print_a_word(addr, 0xF, 0xF, 0b00); addr += 1  # (h, v) = (0xF, 0xF) 用于占位（即表示该格子为 NPC 普通领地），type 字段无意义
+        print('END;', file=f)
 
 
 def get_args():
@@ -107,7 +144,7 @@ def get_args():
     # 添加命令行参数
     # parser.add_argument('-w', '--width', dest='board_width',   type=int,  default=10,  help='board width')
     parser.add_argument('-n', '--num',   dest='board_num',     type=int,  default=128, help='board num')
-    parser.add_argument('-f', '--file',  dest='mif_file_path', type=Path, default=Path.cwd() / 'random_boards,mif', help='output MIF file path')
+    parser.add_argument('-f', '--file',  dest='mif_file_path', type=Path, default=Path.cwd() / f'random_boards-{current_time}.mif', help='output MIF file path')
     
     # 从命令行中解析参数
     args = parser.parse_args()
@@ -118,6 +155,7 @@ def get_args():
 
 if __name__ == "__main__":
 
+    current_time = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     # 从命令行获取参数（生成的初始局面数量、MIF 文件地址）
     args = get_args()
 
@@ -136,7 +174,7 @@ if __name__ == "__main__":
         boards.append(board)
 
         # 保存日志
-        with open(Path('log') / f'random_boards-{datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.txt', 'a') as f:
+        with open(Path('log') / f'random_boards-{current_time}.txt', 'a') as f:
             f.write(f"[{id}]\n")
             f.write(str(board))
             f.write("\n")
