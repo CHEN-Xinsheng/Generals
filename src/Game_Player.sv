@@ -523,15 +523,31 @@ always_comb begin
         gen_green = 255;
         gen_blue = 0;
     end else 
+    if ((cursor_type == MOVE_TOTAL || cursor_type == MOVE_HALF)
+    && (((hdata == cursor_array[cursor.h]+2 || hdata == cursor_array[cursor.h]+38 || vdata == cursor_array[cursor.v]+2 || vdata==cursor_array[cursor.v]+38)
+    &&(vdata<=cursor_array[cursor.v]+38 && vdata>=cursor_array[cursor.v]+2 && hdata<=cursor_array[cursor.h]+38 && hdata>=cursor_array[cursor.h]+2))
+    || ((hdata == cursor_array[cursor.h]+3 || hdata == cursor_array[cursor.h]+37 || vdata == cursor_array[cursor.v]+3 || vdata==cursor_array[cursor.v]+37)
+    &&(vdata<=cursor_array[cursor.v]+37 && vdata>=cursor_array[cursor.v]+3 && hdata<=cursor_array[cursor.h]+37 && hdata>=cursor_array[cursor.h]+3)))) begin
+        gen_red = 0;
+        gen_green = 255;
+        gen_blue = 0;
+    end else
     if (vdata<=440&&vdata>=40&&hdata<=440&&hdata>=40) begin
         gen_red = ramdata[7:0];
         gen_green = ramdata[15:8];
         gen_blue = ramdata[23:16];
     end else 
     if (((vdata <= 80 && vdata > 40) ||(vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0) begin
-        gen_red = bignumberdata[7:0];
-        gen_green = bignumberdata[15:8];
-        gen_blue = bignumberdata[23:16];
+        if (step_timer <= 5 && (vdata <= 160 && vdata > 120)) begin 
+            gen_red = 255;
+            gen_green = 0;
+            gen_blue = 0;
+        end
+        else begin        
+            gen_red = bignumberdata[7:0];
+            gen_green = bignumberdata[15:8];
+            gen_blue = bignumberdata[23:16];
+        end
     end else 
     if ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) begin
         if (current_player == RED) begin
