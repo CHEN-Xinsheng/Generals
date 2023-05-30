@@ -450,9 +450,9 @@ task automatic ready();
         end
 
         operation      <= NONE;                         // 操作队列初始化为空
-        current_player <= Player'(random_timer[0]);     // 随机产生先手玩家
+        current_player <= Player'(random_timer[0] + 1);     // 随机产生先手玩家
         // TODO 坐标在先手玩家的王城
-        if (Player'(random_timer[0]) == RED) 
+        if (Player'(random_timer[0] + 1) == RED) 
             cursor <= '{'d2, 'd3};
         else 
             cursor <= '{'d8, 'd7};
@@ -501,7 +501,7 @@ logic [31:0] bignumber6_ramdata;
 logic [31:0] bignumber7_ramdata;
 logic [31:0] bignumber8_ramdata;
 logic [31:0] bignumber9_ramdata;
-logic [31:0] white_ramdata;
+logic [31:0] percent_ramdata;
 logic [31:0] numberdata;
 logic [31:0] bignumberdata;
 logic [31:0] ramdata;//选择后的用作输出的ram数据
@@ -566,11 +566,15 @@ always_comb begin
             gen_red = red_ramdata[7:0];
             gen_green = red_ramdata[15:8];
             gen_blue = red_ramdata[23:16];
-        end else begin
+        end else if (current_player == BLUE) begin
             gen_red = blue_ramdata[7:0];
             gen_green = blue_ramdata[15:8];
             gen_blue = blue_ramdata[23:16]; 
-        end     
+        end else begin
+            gen_red = 0;
+            gen_green = 255;
+            gen_blue = 0;
+        end
     end else
     if ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 && winner!=NPC) begin
         if (winner == RED) begin
@@ -850,7 +854,11 @@ always_comb begin
         is_gen = 1;
         ramdata = 0;
     end else
-    if (cur_troop!=0 && numberdata[31:24] == 255) begin
+    if (cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v && percent_ramdata[31:24] != 0) begin
+        is_gen = 1;
+        ramdata = percent_ramdata;
+    end else
+    if (cur_troop!=0 && numberdata[31:24] == 255 && !(cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v)) begin
         is_gen = 1;
         ramdata = numberdata;
     end else 
@@ -1115,6 +1123,13 @@ ram_mountain ram_mountain_test (
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)
+);
+ram_50percent ram_50percent_test (
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(percent_ramdata)
 );
 always_comb begin
     if (hdata == 40 || hdata==80 || hdata==120 || hdata == 160|| hdata == 200 
