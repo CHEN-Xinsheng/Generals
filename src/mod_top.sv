@@ -149,11 +149,13 @@ logic [LOG2_MAX_PLAYER_CNT - 1: 0]  next_player_o_test;      // 下一回合玩�
 logic [LOG2_MAX_CURSOR_TYPE -1: 0]  cursor_type_o_test;      // 当前光标类型
 logic [2: 0]                        operation_o_test;        // 当前操作队列
 logic [LOG2_MAX_STEP_TIME -1: 0]    step_timer_o_test;       // 当前回合剩余时间
+logic [LOG2_MAX_ROUND - 1: 0]       round_o_test;            // 当前回合数
 
 assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
 assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
 assign number[23:16] = troop_o_test[7:0];     // 3-4 当前格兵力
-assign number[15:12] = owner_o_test;          // 5   当前格归属方
+assign number[15:12] = round_o_test[3:0];     // 5   当前回合数
+// assign number[15:12] = owner_o_test;          // 5   当前格归属方
 assign number[11: 8] = step_timer_o_test;     // 6   当前回合剩余时间
 // assign number[11: 8] = piece_type_o_test;     // 6   当前格棋子类型
 assign number[ 7: 4] = current_player_o_test; // 7   当前回合玩家
@@ -235,6 +237,7 @@ Game_Player #(
         .cursor_type_o_test    (cursor_type_o_test),
         .operation_o_test      (operation_o_test),
         .step_timer_o_test     (step_timer_o_test),
+        .round_o_test          (round_o_test),
         //// [TEST END]
 
         //// input
