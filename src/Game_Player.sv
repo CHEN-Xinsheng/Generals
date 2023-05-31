@@ -10,24 +10,25 @@ module Game_Player
             LOG2_MAX_CURSOR_TYPE = 2,
             MAX_STEP_TIME        = 15,
             LOG2_MAX_STEP_TIME   = 5,
-            MAX_RANDOM_TIMER     = 128) (
+            MAX_RANDOM_BOARD     = 128) (
     //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
-    output wire [LOG2_BORAD_WIDTH - 1: 0]           cursor_h_o_test,            // 当前光标位置的横坐标（h 坐标）
-    output wire [LOG2_BORAD_WIDTH - 1: 0]           cursor_v_o_test,            // 当前光标位置的纵坐标（v 坐标）
-    output wire [LOG2_MAX_TROOP - 1: 0]             troop_o_test,               // 当前格兵力
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        owner_o_test,               // 当前格归属方
-    output wire [LOG2_PIECE_TYPE_CNT - 1: 0]        piece_type_o_test,          // 当前格棋子类型
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        current_player_o_test,      // 当前回合玩家
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        next_player_o_test,         // 下一回合玩家
-    output wire [LOG2_MAX_CURSOR_TYPE -1: 0]        cursor_type_o_test,         // 当前光标类型
-    output wire [2: 0]                              operation_o_test,           // 当前操作队列
-    output wire [LOG2_MAX_STEP_TIME -1: 0]          step_timer_o_test,          // 当前回合剩余时间
-    output wire [LOG2_MAX_ROUND - 1: 0]             round_o_test,               // 当前回合数
-    output wire [$clog2(MAX_RANDOM_TIMER) - 1: 0]   chosen_random_board_o_test, // 随机产生的初始棋盘序号
+    output wire [LOG2_BORAD_WIDTH - 1: 0]           cursor_h_o_test,                // 当前光标位置的横坐标（h 坐标）
+    output wire [LOG2_BORAD_WIDTH - 1: 0]           cursor_v_o_test,                // 当前光标位置的纵坐标（v 坐标）
+    output wire [LOG2_MAX_TROOP - 1: 0]             troop_o_test,                   // 当前格兵力
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        owner_o_test,                   // 当前格归属方
+    output wire [LOG2_PIECE_TYPE_CNT - 1: 0]        piece_type_o_test,              // 当前格棋子类型
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        current_player_o_test,          // 当前回合玩家
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        next_player_o_test,             // 下一回合玩家
+    output wire [LOG2_MAX_CURSOR_TYPE -1: 0]        cursor_type_o_test,             // 当前光标类型
+    output wire [2: 0]                              operation_o_test,               // 当前操作队列
+    output wire [LOG2_MAX_STEP_TIME -1: 0]          step_timer_o_test,              // 当前回合剩余时间
+    output wire [LOG2_MAX_ROUND - 1: 0]             round_o_test,                   // 当前回合数
+    output wire [$clog2(MAX_RANDOM_BOARD) - 1: 0]   chosen_random_board_o_test,  // 随机产生的初始棋盘序号
     //// [TEST END]
 
     //// input
     input wire                    clock,
+    input wire                    clock_random_first_player,
     input wire                    start,              // 游戏开始
     input wire                    reset,
     input wire                    clk_vga,
@@ -409,18 +410,17 @@ function automatic logic is_player_city_or_crown (logic [LOG2_BORAD_WIDTH - 1: 0
 endfunction
 
 
-// 抽签器（循环计数器），用于生成随机初始局面和抽签产生初始玩家
-logic [$clog2(MAX_RANDOM_TIMER) - 1: 0] random_timer;
-initial random_timer = 0;
-always_ff @ (posedge clock, posedge reset) begin
-    if (reset) 
-        random_timer <= 0;
-    else
-        random_timer <= random_timer + 1;
-end
-
+// 抽签器（循环计数器），用于生成随机初始局面
+logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] random_board;
+Counter #(.BIT_WIDTH(1)) counter_random_first_player (
+    // input
+    .clock      (clock),
+    .reset      (reset),
+    // output
+    .number_o   (random_board)
+);
 // [TEST BEGIN] 输出随机选中的初始棋盘序号
-logic [$clog2(MAX_RANDOM_TIMER) - 1: 0] chosen_random_board;
+logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] chosen_random_board;
 assign chosen_random_board_o_test = chosen_random_board;
 // [TEST END]
 
@@ -462,11 +462,11 @@ task automatic ready();
             end
         end
         // 准备开始载入初始棋盘
-        init_board_address     <= random_timer >> 5;  // 每张地图占 32 word，所以第 random_timer 的起始地址是 32 * random_timer
-        init_board_address_end <= (random_timer + 1) >> 5; // 终止地址是 32 * (random_timer + 1)
+        init_board_address     <= random_board >> 5;  // 每张地图占 32 word，所以第 random_timer 的起始地址是 32 * random_timer
+        init_board_address_end <= (random_board + 1) >> 5; // 终止地址是 32 * (random_timer + 1)
         state <= LOAD_INIT_BOARD;
         // [TEST BEGIN] 记录随机产生的初始棋盘序号
-        chosen_random_board <= random_timer;
+        chosen_random_board <= random_board;
         // [TEST END]
     end
 endtask 
@@ -503,18 +503,26 @@ task automatic load_init_board();
     end
 endtask
 
-
+// 抽签器（循环计数器），用于抽签产生初始玩家
+logic random_first_player;
+Counter #(.BIT_WIDTH(1)) counter_random_board (
+    // input
+    .clock      (clock_random_first_player),
+    .reset      (reset),
+    // output
+    .number_o   (random_first_player)
+);
 // （初始棋盘已载入完毕）初始化游戏数据，然后开始游戏
 task automatic about_to_start();
     // 操作队列初始化为空
     operation      <= NONE;
     // 随机产生先手玩家
-    if (random_timer[0] == 0)
+    if (random_first_player == 0)
         current_player <= RED;
     else 
         current_player <= BLUE;
     // 初始坐标在先手玩家的王城
-    if (random_timer[0] == 0) 
+    if (random_first_player == 0) 
         cursor <= crowns_pos[RED];
     else 
         cursor <= crowns_pos[BLUE];

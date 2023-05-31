@@ -115,7 +115,7 @@ parameter LOG2_MAX_ROUND        = 12;  // 允许的最大回合数，对 2 取�
 parameter LOG2_MAX_CURSOR_TYPE  = 2;   // 光标种类数，对 2 取对数（向上取整）
 parameter MAX_STEP_TIME         = 15;  // 每次操作最长允许时间
 parameter LOG2_MAX_STEP_TIME    = $clog2(MAX_STEP_TIME);   // 每次操作最长允许时间，对 2 取对数（向上取整）
-parameter MAX_RANDOM_TIMER      = 128; // 从多少张初始地图中随机抽取一张
+parameter MAX_RANDOM_BOARD      = 128; // 从多少张初始地图中随机抽取一张
 // vga 相关
 parameter VGA_WIDTH = 10;
 parameter HSIZE     = 640;
@@ -151,7 +151,7 @@ logic [LOG2_MAX_CURSOR_TYPE -1: 0]          cursor_type_o_test;         // 当�
 logic [2: 0]                                operation_o_test;           // 当前操作队列
 logic [LOG2_MAX_STEP_TIME -1: 0]            step_timer_o_test;          // 当前回合剩余时间
 logic [LOG2_MAX_ROUND - 1: 0]               round_o_test;               // 当前回合数
-logic [$clog2(MAX_RANDOM_TIMER) - 1: 0]     chosen_random_board_o_test; // 随机产生的初始棋盘序号
+logic [$clog2(MAX_RANDOM_BOARD) - 1: 0]     chosen_random_board_o_test; // 随机产生的初始棋盘序号
 
 assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
 assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
@@ -228,7 +228,7 @@ Game_Player #(
         .LOG2_MAX_CURSOR_TYPE  (LOG2_MAX_CURSOR_TYPE),
         .MAX_STEP_TIME         (MAX_STEP_TIME),
         .LOG2_MAX_STEP_TIME    (LOG2_MAX_STEP_TIME),
-        .MAX_RANDOM_TIMER      (MAX_RANDOM_TIMER)
+        .MAX_RANDOM_BOARD      (MAX_RANDOM_BOARD)
     ) game_player (
         //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
         .cursor_h_o_test            (cursor_h_o_test),
@@ -247,25 +247,26 @@ Game_Player #(
 
         //// input
         // 时钟信号和重置信号
-        .clock             (clk_50M),
-        .start             (clock_btn),
-        .reset             (reset_btn),
-        .clk_vga           (clk_vga),
+        .clock                      (clk_50M),
+        .clock_random_first_player  (clk_100M),
+        .start                      (clock_btn),
+        .reset                      (reset_btn),
+        .clk_vga                    (clk_vga),
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
-        .keyboard_ready    (keyboard_ready),  // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
-        .keyboard_data     (keyboard_data),
+        .keyboard_ready             (keyboard_ready),  // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
+        .keyboard_data              (keyboard_data),
         // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
-        .hdata             (hdata),
-        .vdata             (vdata),
+        .hdata                      (hdata),
+        .vdata                      (vdata),
 
         //// output
         // 与 Keyboard_Decoder 交互：输出键盘操作已被读取的信号
-        .keyboard_read_fin (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
+        .keyboard_read_fin          (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
         // 与 Pixel_Controller 交互：输出当前像素棋局图像，以及该像素是显示背景(use_gen=0)还是棋子(use_gen=1)
-        .gen_red           (gen_red),
-        .gen_green         (gen_green),
-        .gen_blue          (gen_blue),
-        .use_gen           (use_gen)
+        .gen_red                    (gen_red),
+        .gen_green                  (gen_green),
+        .gen_blue                   (gen_blue),
+        .use_gen                    (use_gen)
 );
 
 
