@@ -23,7 +23,8 @@ module Game_Player
     output wire [2: 0]                              operation_o_test,               // 当前操作队列
     output wire [LOG2_MAX_STEP_TIME -1: 0]          step_timer_o_test,              // 当前回合剩余时间
     output wire [LOG2_MAX_ROUND - 1: 0]             round_o_test,                   // 当前回合数
-    output wire [$clog2(MAX_RANDOM_BOARD) - 1: 0]   chosen_random_board_o_test,  // 随机产生的初始棋盘序号
+    output wire [$clog2(MAX_RANDOM_BOARD) - 1: 0]   chosen_random_board_o_test,     // 随机产生的初始棋盘序号
+    output wire [2: 0]                              state_o_test,                   // 游戏当前状态
     //// [TEST END]
 
     //// input
@@ -159,6 +160,7 @@ assign cursor_type_o_test    = cursor_type;                             // 当�
 assign operation_o_test      = operation;                               // 当前操作队列
 assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间
 assign round_o_test          = round;                                   // 当前回合数
+assign state_o_test          = state;                                   // 游戏当前状态
 // [TEST END]
 
 //// [游戏内部数据 END]
@@ -412,7 +414,7 @@ endfunction
 
 // 抽签器（循环计数器），用于生成随机初始局面
 logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] random_board;
-Counter #(.BIT_WIDTH(1)) counter_random_first_player (
+Counter #(.BIT_WIDTH($clog2(MAX_RANDOM_BOARD))) counter_random_board (
     // input
     .clock      (clock),
     .reset      (reset),
@@ -459,6 +461,7 @@ task automatic ready();
         for (int h = 0; h < BORAD_WIDTH; h++) begin
             for (int v = 0; v < BORAD_WIDTH; v++) begin
                 cells[h][v] <= '{NPC, TERRITORY, 'h0};
+                // cells[h][v] <= '{RED, TERRITORY, 'h5};
             end
         end
         // 准备开始载入初始棋盘
@@ -505,7 +508,7 @@ endtask
 
 // 抽签器（循环计数器），用于抽签产生初始玩家
 logic random_first_player;
-Counter #(.BIT_WIDTH(1)) counter_random_board (
+Counter #(.BIT_WIDTH(1)) counter_random_first_player(
     // input
     .clock      (clock_random_first_player),
     .reset      (reset),
