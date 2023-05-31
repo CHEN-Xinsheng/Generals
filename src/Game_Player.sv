@@ -9,19 +9,21 @@ module Game_Player
             LOG2_MAX_ROUND       = 12,
             LOG2_MAX_CURSOR_TYPE = 2,
             MAX_STEP_TIME        = 15,
-            LOG2_MAX_STEP_TIME   = 5) (
+            LOG2_MAX_STEP_TIME   = 5,
+            MAX_RANDOM_TIMER     = 128) (
     //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
-    output wire [LOG2_BORAD_WIDTH - 1: 0]       cursor_h_o_test,         // 当前光标位置的横坐标（h 坐标）
-    output wire [LOG2_BORAD_WIDTH - 1: 0]       cursor_v_o_test,         // 当前光标位置的纵坐标（v 坐标）
-    output wire [LOG2_MAX_TROOP - 1: 0]         troop_o_test,            // 当前格兵力
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    owner_o_test,            // 当前格归属方
-    output wire [LOG2_PIECE_TYPE_CNT - 1: 0]    piece_type_o_test,       // 当前格棋子类型
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    current_player_o_test,   // 当前回合玩家
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    next_player_o_test,      // 下一回合玩家
-    output wire [LOG2_MAX_CURSOR_TYPE -1: 0]    cursor_type_o_test,      // 当前光标类型
-    output wire [2: 0]                          operation_o_test,        // 当前操作队列
-    output wire [LOG2_MAX_STEP_TIME -1: 0]      step_timer_o_test,       // 当前回合剩余时间
-    output wire [LOG2_MAX_ROUND - 1: 0]         round_o_test,            // 当前回合数
+    output wire [LOG2_BORAD_WIDTH - 1: 0]           cursor_h_o_test,            // 当前光标位置的横坐标（h 坐标）
+    output wire [LOG2_BORAD_WIDTH - 1: 0]           cursor_v_o_test,            // 当前光标位置的纵坐标（v 坐标）
+    output wire [LOG2_MAX_TROOP - 1: 0]             troop_o_test,               // 当前格兵力
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        owner_o_test,               // 当前格归属方
+    output wire [LOG2_PIECE_TYPE_CNT - 1: 0]        piece_type_o_test,          // 当前格棋子类型
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        current_player_o_test,      // 当前回合玩家
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        next_player_o_test,         // 下一回合玩家
+    output wire [LOG2_MAX_CURSOR_TYPE -1: 0]        cursor_type_o_test,         // 当前光标类型
+    output wire [2: 0]                              operation_o_test,           // 当前操作队列
+    output wire [LOG2_MAX_STEP_TIME -1: 0]          step_timer_o_test,          // 当前回合剩余时间
+    output wire [LOG2_MAX_ROUND - 1: 0]             round_o_test,               // 当前回合数
+    output wire [$clog2(MAX_RANDOM_TIMER) - 1: 0]   chosen_random_board_o_test, // 随机产生的初始棋盘序号
     //// [TEST END]
 
     //// input
@@ -47,9 +49,6 @@ module Game_Player
     output wire                   use_gen             // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 );
 
-// 常数
-localparam MAX_RANDOM_TIMER = 128; // 从多少张地图中随机抽取一张
-
 
 //// [游戏内部数据 BEGIN]
 // 玩家类型
@@ -73,7 +72,7 @@ typedef enum logic [LOG2_MAX_CURSOR_TYPE - 1:0] {
     CHOOSE     = 2'b00,
     MOVE_TOTAL = 2'b10,
     MOVE_HALF  = 2'b11
-} Cursor_type;
+} Cursor_Type;
 // 键盘操作类型
 typedef enum logic [2:0] {
     W     = 3'b000, 
@@ -86,27 +85,29 @@ typedef enum logic [2:0] {
 } Operation;
 // 游戏状态
 typedef enum logic [2:0] {
-    READY,         // 游戏准备开始
-    IN_ROUND,      // 回合内
-    CHECK_WIN,     // 判断胜负
-    ROUND_SWITCH,  // 回合切换中
-    GAME_OVER      // 游戏结束
+    READY,              // 游戏准备开始
+    LOAD_INIT_BOARD,    // 载入初始棋盘
+    ABOUT_TO_START,     // 初始棋盘载入完毕，初始化游戏数据
+    IN_ROUND,           // 回合内
+    CHECK_WIN,          // 判断胜负
+    ROUND_SWITCH,       // 回合切换中
+    GAME_OVER           // 游戏结束
 } State;
 
 
 // 游戏数据
 Cell      cells      [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0];  // 棋盘结构体数组
-Position  crowns_pos [MAX_PLAYER_CNT - 1:0];        // 每个玩家王城的位置
+Position  crowns_pos [MAX_PLAYER_CNT - 1:0];                    // 每个玩家王城的位置
 
-Operation                           operation;          // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
-Player                              current_player;     // 当前玩家
-Position                            cursor;             // 当前光标位置
-Cursor_type                         cursor_type;        // 光标所处模式：选择模式(0x)，行棋模式(1x)
-logic [LOG2_MAX_ROUND:     0]       step_cnt;           // 已经进行的行棋操作次数（包括超时，视为空操作）
-logic [LOG2_MAX_ROUND - 1: 0]       round;              // 当前回合（从 1 开始）
-Player                              winner;             // 胜者，
-State                               state;              // 当前游戏状态
-logic [LOG2_MAX_STEP_TIME -1: 0]    step_timer;         // 当前回合剩余时间
+Operation                               operation;              // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
+Player                                  current_player;         // 当前玩家
+Position                                cursor;                 // 当前光标位置
+Cursor_Type                             cursor_type;            // 光标所处模式：选择模式(0x)，行棋模式(1x)
+logic [LOG2_MAX_ROUND:     0]           step_cnt;               // 已经进行的行棋操作次数（包括超时，视为空操作）
+logic [LOG2_MAX_ROUND - 1: 0]           round;                  // 当前回合（从 1 开始）
+Player                                  winner;                 // 胜者
+State                                   state;                  // 当前游戏状态
+logic [LOG2_MAX_STEP_TIME -1: 0]        step_timer;             // 当前回合剩余时间
 
 assign round = (step_cnt >> 1) + 1;
 
@@ -180,25 +181,17 @@ always_ff @ (posedge clock, posedge reset) begin
         end else begin
             keyboard_read_fin <= 'b0;
             casez (state)
-                READY:        ready();
-                IN_ROUND:     in_round();
-                CHECK_WIN:    check_win();
-                ROUND_SWITCH: round_switch();
-                GAME_OVER:    ;
+                READY:              ready();
+                LOAD_INIT_BOARD:    load_init_board();
+                ABOUT_TO_START:     about_to_start();
+                IN_ROUND:           in_round();
+                CHECK_WIN:          check_win();
+                ROUND_SWITCH:       round_switch();
+                GAME_OVER:          ;
                 default: ; // assert 这种情况不应出现
             endcase
         end
     end
-end
-
-// 抽签器（循环计数器），用于生成随机初始局面和抽签产生初始玩家
-logic [$clog2(MAX_RANDOM_TIMER) - 1: 0] random_timer;
-initial random_timer = 0;
-always_ff @ (posedge clock, posedge reset) begin
-    if (reset) 
-        random_timer <= 0;
-    else
-        random_timer <= random_timer + 1;
 end
 
 // step_timer 倒计时秒表
@@ -415,56 +408,125 @@ function automatic logic is_player_city_or_crown (logic [LOG2_BORAD_WIDTH - 1: 0
         return 0;
 endfunction
 
+
+// 抽签器（循环计数器），用于生成随机初始局面和抽签产生初始玩家
+logic [$clog2(MAX_RANDOM_TIMER) - 1: 0] random_timer;
+initial random_timer = 0;
+always_ff @ (posedge clock, posedge reset) begin
+    if (reset) 
+        random_timer <= 0;
+    else
+        random_timer <= random_timer + 1;
+end
+
+// [TEST BEGIN] 输出随机选中的初始棋盘序号
+logic [$clog2(MAX_RANDOM_TIMER) - 1: 0] chosen_random_board;
+assign chosen_random_board_o_test = chosen_random_board;
+// [TEST END]
+
+
+// 从初始棋盘库中读取初始棋盘
+logic [11:0]                    init_board_address;
+logic [11:0]                    init_board_address_end;
+logic [9: 0]                    init_board_data;
+    // 解析所读出的数据的 3 个字段
+logic [LOG2_BORAD_WIDTH - 1: 0] init_board_h;
+logic [LOG2_BORAD_WIDTH - 1: 0] init_board_v;
+logic [LOG2_BORAD_WIDTH - 1: 0] init_board_type;
+assign init_board_h    = init_board_data[9: 6];
+assign init_board_v    = init_board_data[5: 2];
+assign init_board_type = init_board_data[1: 0];
+typedef enum logic [1: 0] {
+    NPC_MOUNTAIN = 2'b00,
+    NPC_CITY     = 2'b01,
+    RED_CROWN    = 2'b10,
+    BLUE_CROWN   = 2'b11 
+} Init_Board_Type;
+
+Random_Boards random_boards (
+    .address (init_board_address),  // 读写操作的地址
+    .clock   (clock),               // 读写时钟
+    .data    (0),                   // 写入的数据，选择不写入(0)，故此位无意义
+    .wren    (0),                   // 是否写入
+    .q       (init_board_data)      // 读出的数据
+);
+
 // 等待开始游戏
 task automatic ready();
-    // 如果此时开始按钮处于按下状态，那么开始游戏
+    // 如果此时开始按钮处于按下状态，那么生成随机数，并开始载入初始棋盘
     if (start) begin
-        // TODO 生成随机初始局面
-        // 各方王城坐标
-        crowns_pos[RED]  <= '{'d2, 'd3};
-        crowns_pos[BLUE] <= '{'d8, 'd7};
-        // 初始化棋盘
+        // 清空棋盘
         for (int h = 0; h < BORAD_WIDTH; h++) begin
             for (int v = 0; v < BORAD_WIDTH; v++) begin
-                // CROWN
-                if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
-                    cells[h][v] <= '{RED, CROWN, 'd87};
-                end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
-                    cells[h][v] <= '{BLUE, CROWN, 'd89};
-                // NPC
-                end else if (v == 5) begin
-                    cells[h][v] <= '{NPC, CITY, 'd0};
-                end else if (h + v == 9 && h >= 6) begin
-                    cells[h][v] <= '{NPC, MOUNTAIN, 'd0};
-                // RED
-                end else if (2 <= h && h <= 5 && 2 <= v && v <= 5) begin
-                    cells[h][v] <= '{RED, CITY, 'd25};
-                // BLUE
-                end else if (7 <= h && h <= 9 && 5 <= v && v <= 9) begin
-                    cells[h][v] <= '{BLUE, CITY, 'd37};
-                // NPC TERRITORY
-                end else begin
-                    cells[h][v] <= '{NPC, TERRITORY, 'd0};
-                end
+                cells[h][v] <= '{NPC, TERRITORY, 'h0};
             end
         end
-
-        operation      <= NONE;                         // 操作队列初始化为空
-        current_player <= Player'(random_timer[0] + 1);     // 随机产生先手玩家
-        // TODO 坐标在先手玩家的王城
-        if (Player'(random_timer[0] + 1) == RED) 
-            cursor <= '{'d2, 'd3};
-        else 
-            cursor <= '{'d8, 'd7};
-        cursor_type    <= CHOOSE;
-        step_cnt       <= 'd0;
-        winner         <= NPC;                          // 胜者，该值仅当 state == GAME_OVER 时有效
-        // 开始游戏
-        state <= IN_ROUND;
-        // 重启计时器
-        step_timer_reset();
+        // 准备开始载入初始棋盘
+        init_board_address     <= random_timer >> 5;  // 每张地图占 32 word，所以第 random_timer 的起始地址是 32 * random_timer
+        init_board_address_end <= (random_timer + 1) >> 5; // 终止地址是 32 * (random_timer + 1)
+        state <= LOAD_INIT_BOARD;
+        // [TEST BEGIN] 记录随机产生的初始棋盘序号
+        chosen_random_board <= random_timer;
+        // [TEST END]
     end
 endtask 
+
+// 载入初始棋盘
+task automatic load_init_board();
+    // 如果初始棋盘尚未读完
+    if (init_board_address != init_board_address_end) begin
+        // 读出 1 word 的数据，对应棋盘中的一个“特殊元素”（王城/山/NPC城市）
+        // 不处理占位符：(h, v) = (0xF, 0xF) 表示这个 word 是占位符，仅用于将该棋盘填充至 32 word，故此情况不处理
+        if (!(init_board_h == 'hF && init_board_v == 'hF)) begin
+            casez (init_board_type)
+                NPC_MOUNTAIN:
+                    cells[init_board_h][init_board_v] <= '{NPC,  MOUNTAIN, 0};
+                NPC_CITY:
+                    cells[init_board_h][init_board_v] <= '{NPC,  CITY,     0};
+                RED_CROWN:  begin 
+                    cells[init_board_h][init_board_v] <= '{RED,  CROWN,    9};
+                    crowns_pos[RED ] <= '{init_board_h, init_board_v};
+                end
+                BLUE_CROWN: begin
+                    cells[init_board_h][init_board_v] <= '{BLUE, CROWN,    9};
+                    crowns_pos[BLUE] <= '{init_board_h, init_board_v};
+                end
+                default: ;  // assert 这种情况不应出现
+            endcase
+        end
+        // 下一周期的读地址 + 1 word
+        init_board_address <= init_board_address + 1;
+    // 如果初始棋盘已经加载完毕
+    end else begin
+        // 转到 ABOUT_TO_START 状态，初始化其他游戏数据（然后将开始游戏）
+        state <= ABOUT_TO_START;
+    end
+endtask
+
+
+// （初始棋盘已载入完毕）初始化游戏数据，然后开始游戏
+task automatic about_to_start();
+    // 操作队列初始化为空
+    operation      <= NONE;
+    // 随机产生先手玩家
+    if (random_timer[0] == 0)
+        current_player <= RED;
+    else 
+        current_player <= BLUE;
+    // 初始坐标在先手玩家的王城
+    if (random_timer[0] == 0) 
+        cursor <= crowns_pos[RED];
+    else 
+        cursor <= crowns_pos[BLUE];
+
+    cursor_type    <= CHOOSE;
+    winner         <= NPC;     // 胜者，该值仅当 state == GAME_OVER 时有效
+    step_cnt       <= 'd0;
+    // 开始游戏
+    state <= IN_ROUND;
+    // 重启计时器
+    step_timer_reset();
+endtask
 
 //// [游戏逻辑部分 END]
 
@@ -501,7 +563,7 @@ logic [31:0] bignumber6_ramdata;
 logic [31:0] bignumber7_ramdata;
 logic [31:0] bignumber8_ramdata;
 logic [31:0] bignumber9_ramdata;
-logic [31:0] percent_ramdata;
+logic [31:0] white_ramdata;
 logic [31:0] numberdata;
 logic [31:0] bignumberdata;
 logic [31:0] ramdata;//选择后的用作输出的ram数据
@@ -566,15 +628,11 @@ always_comb begin
             gen_red = red_ramdata[7:0];
             gen_green = red_ramdata[15:8];
             gen_blue = red_ramdata[23:16];
-        end else if (current_player == BLUE) begin
+        end else begin
             gen_red = blue_ramdata[7:0];
             gen_green = blue_ramdata[15:8];
             gen_blue = blue_ramdata[23:16]; 
-        end else begin
-            gen_red = 0;
-            gen_green = 255;
-            gen_blue = 0;
-        end
+        end     
     end else
     if ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 && winner!=NPC) begin
         if (winner == RED) begin
@@ -854,11 +912,7 @@ always_comb begin
         is_gen = 1;
         ramdata = 0;
     end else
-    if (cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v && percent_ramdata[31:24] != 0) begin
-        is_gen = 1;
-        ramdata = percent_ramdata;
-    end else
-    if (cur_troop!=0 && numberdata[31:24] == 255 && !(cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v)) begin
+    if (cur_troop!=0 && numberdata[31:24] == 255) begin
         is_gen = 1;
         ramdata = numberdata;
     end else 
@@ -1123,13 +1177,6 @@ ram_mountain ram_mountain_test (
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)
-);
-ram_50percent ram_50percent_test (
-    .address(address),
-    .clock(clock),
-    .data(indata),
-    .wren(0),
-    .q(percent_ramdata)
 );
 always_comb begin
     if (hdata == 40 || hdata==80 || hdata==120 || hdata == 160|| hdata == 200 
