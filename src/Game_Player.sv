@@ -25,10 +25,12 @@ module Game_Player
     output wire [LOG2_MAX_ROUND - 1: 0]             round_o_test,                   // 当前回合数
     output wire [$clog2(MAX_RANDOM_BOARD) - 1: 0]   chosen_random_board_o_test,     // 随机产生的初始棋盘序号
     output wire [2: 0]                              state_o_test,                   // 游戏当前状态
+    output wire [11:0]                              init_board_address_o_test,      // 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
     //// [TEST END]
 
     //// input
-    input wire                    clock,
+    input wire                    clock,    
+    input wire                    clock_random_board,
     input wire                    clock_random_first_player,
     input wire                    start,              // 游戏开始
     input wire                    reset,
@@ -416,7 +418,7 @@ endfunction
 logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] random_board;
 Counter #(.BIT_WIDTH($clog2(MAX_RANDOM_BOARD))) counter_random_board (
     // input
-    .clock      (clock),
+    .clock      (clock_random_board),
     .reset      (reset),
     // output
     .number_o   (random_board)
@@ -444,6 +446,10 @@ typedef enum logic [1: 0] {
     RED_CROWN    = 2'b10,
     BLUE_CROWN   = 2'b11 
 } Init_Board_Type;
+// [TEST BEGIN] 输出当前读到的地址
+assign init_board_address_o_test = init_board_address;
+// [TEST END]
+
 
 Random_Boards random_boards (
     .address (init_board_address),  // 读写操作的地址

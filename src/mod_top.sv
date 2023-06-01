@@ -89,7 +89,7 @@ wire clk_50M;
 wire clk_vga;
 ip_pll u_ip_pll(
     .inclk0 (clk_100M),
-    .c0     (clk_50M ),  // 50MHz 像素时钟
+    .c0     (clk_50M ),  // 50MHz 时钟，用于游戏逻辑
     .c1     (clk_vga )   // 25MHz 像素时钟
 );
 
@@ -153,9 +153,12 @@ logic [LOG2_MAX_STEP_TIME -1: 0]            step_timer_o_test;          // 当�
 logic [LOG2_MAX_ROUND - 1: 0]               round_o_test;               // 当前回合数
 logic [$clog2(MAX_RANDOM_BOARD) - 1: 0]     chosen_random_board_o_test; // 随机产生的初始棋盘序号
 logic [2: 0]                                state_o_test;               // 游戏当前状态
+logic [11:0]                                init_board_address_o_test;  // 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
 
-assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
-assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
+
+// assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
+// assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
+assign number[31:24] = init_board_address_o_test[7:0]; // 1-2 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
 assign number[23:16] = troop_o_test[7:0];     // 3-4 当前格兵力
 assign number[15:12] = state_o_test;          // 5   游戏当前状态
 assign number[11: 8] = step_timer_o_test;     // 6   当前回合剩余时间
@@ -245,13 +248,17 @@ Game_Player #(
         .round_o_test               (round_o_test),
         .chosen_random_board_o_test (chosen_random_board_o_test),
         .state_o_test               (state_o_test),
+        .init_board_address_o_test  (init_board_address_o_test),
         //// [TEST END]
 
         //// input
         // 时钟信号和重置信号
-        .clock                      (clk_50M),
+        .clock                      (clock_btn),
+        // .clock                      (clk_50M),
+        .clock_random_board         (clk_50M),
         .clock_random_first_player  (clk_100M),
-        .start                      (clock_btn),
+        // .start                      (clock_btn),
+        .start                      (~dip_sw[0]),
         .reset                      (reset_btn),
         .clk_vga                    (clk_vga),
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
