@@ -29,7 +29,7 @@ module Game_Player
     //// [TEST END]
 
     //// input
-    input wire                    clock,    
+    input wire                    clock,
     input wire                    clock_random_board,
     input wire                    clock_random_first_player,
     input wire                    start,              // 游戏开始
@@ -423,6 +423,10 @@ Counter #(.BIT_WIDTH($clog2(MAX_RANDOM_BOARD))) counter_random_board (
     // output
     .number_o   (random_board)
 );
+// [TEST BEGIN] 设置固定的初始棋盘序号，用于测试指定棋盘
+// assign random_board = 'h2c;
+// [TEST END]
+
 // [TEST BEGIN] 输出随机选中的初始棋盘序号
 logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] chosen_random_board;
 assign chosen_random_board_o_test = chosen_random_board;
@@ -439,7 +443,7 @@ logic [LOG2_BORAD_WIDTH - 1: 0] init_board_v;
 logic [LOG2_BORAD_WIDTH - 1: 0] init_board_type;
 assign init_board_h    = init_board_data[9: 6];
 assign init_board_v    = init_board_data[5: 2];
-assign init_board_type = init_board_data[1: 0];
+assign init_board_type = Init_Board_Type'(init_board_data[1: 0]);
 typedef enum logic [1: 0] {
     NPC_MOUNTAIN = 2'b00,
     NPC_CITY     = 2'b01,
@@ -467,12 +471,11 @@ task automatic ready();
         for (int h = 0; h < BORAD_WIDTH; h++) begin
             for (int v = 0; v < BORAD_WIDTH; v++) begin
                 cells[h][v] <= '{NPC, TERRITORY, 'h0};
-                // cells[h][v] <= '{RED, TERRITORY, 'h5};
             end
         end
         // 准备开始载入初始棋盘
-        init_board_address     <= random_board >> 5;  // 每张地图占 32 word，所以第 random_timer 的起始地址是 32 * random_timer
-        init_board_address_end <= (random_board + 1) >> 5; // 终止地址是 32 * (random_timer + 1)
+        init_board_address     <= random_board << 5;  // 每张地图占 32 word，所以第 random_timer 的起始地址是 32 * random_timer
+        init_board_address_end <= (random_board + 1) << 5; // 终止地址是 32 * (random_timer + 1)
         state <= LOAD_INIT_BOARD;
         // [TEST BEGIN] 记录随机产生的初始棋盘序号
         chosen_random_board <= random_board;
