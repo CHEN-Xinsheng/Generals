@@ -82,13 +82,12 @@ module mod_top (
 );
 
 /* =========== Demo code begin =========== */
-wire clk_100M = clk_100m;
 
 // PLL 分频演示，从输入产生不同频率的时钟
 wire clk_50M;
 wire clk_vga;
 ip_pll u_ip_pll(
-    .inclk0 (clk_100M),
+    .inclk0 (clk_100m),
     .c0     (clk_50M ),  // 50MHz 时钟，用于游戏逻辑
     .c1     (clk_vga )   // 25MHz 像素时钟
 );
@@ -96,7 +95,7 @@ ip_pll u_ip_pll(
 // 七段数码管扫描演示
 reg [31: 0] number;
 dpy_scan u_dpy_scan (
-    .clk     (clk_100M    ),
+    .clk     (clk_100m    ),
     .number  (number      ),
     .dp      (7'b0        ),
     .digit   (dpy_digit   ),
@@ -175,7 +174,7 @@ assign number[ 7: 0] = chosen_random_board_o_test; // 7-8 随机产生的初始�
 
 // // 自增计数器，用于数码管演示
 // reg [31: 0] counter;
-// always @(posedge clk_100M or posedge reset_btn) begin
+// always @(posedge clk_100m or posedge reset_btn) begin
 //     if (reset_btn) begin
 // 	     counter <= 32'b0;
 // 		  number <= 32'b0;
@@ -200,7 +199,7 @@ logic        keyboard_read_fin;     // 逻辑模块 -> 键盘输入模块 的信
 logic [2: 0] keyboard_data;
 Keyboard_Decoder keyboard_decoder (
     //// input 
-    .clock      (clk_100M),
+    .clock      (clk_100m),
     .reset      (reset_btn),
     .ps2_clock  (ps2_clock),
     .ps2_data   (ps2_data),
@@ -259,7 +258,7 @@ Game_Player #(
         // 时钟信号和重置信号
         // .clock                      (clock_btn),   // [TEST]
         .clock                      (clk_50M),
-        .clock_random_first_player  (clk_100M),
+        .clock_random_first_player  (clk_100m),
         .start                      (clock_btn),
         // .start                      (~dip_sw[0]),  // [TEST]
         .reset                      (reset_btn),
