@@ -69,23 +69,31 @@ def random_board(width, mountain_cnt, NPC_city_cnt):
     """
     board = Board(width)
 
-    # 1. 随机生成两个王城，保证距离充分大
+    # 1. 随机生成两个王城，保证距离充分大且不在边缘
     while True:
-        board.crowns[Player.RED ] = (random.randrange(0, width), random.randrange(0, width))
-        board.crowns[Player.BLUE] = (random.randrange(0, width), random.randrange(0, width))
+        board.crowns[Player.RED ] = (random.randrange(1, width-1), random.randrange(1, width-1))
+        board.crowns[Player.BLUE] = (random.randrange(1, width-1), random.randrange(1, width-1))
         if distance(board.crowns[Player.RED ], board.crowns[Player.BLUE], 1) >= 1.2 * width:
             break
-    
-    # 2. 王城之间生成一条道路，这条道路上将没有山，以保证王城之间的连通性
+
+    # 2. 每个王城附近 3*3 内保证至少 1 个塔
+    for player in [Player.RED, Player.BLUE]:
+        while True:
+            city = (board.crowns[player][0] + random.randrange(-1, 2), board.crowns[player][1] + random.randrange(-1, 2))
+            if not city == board.crowns[player]:
+                board.NPC_cities.append(city)
+                break
+
+    # 3. 王城之间生成一条道路，这条道路上将没有山，以保证王城之间的连通性
     protected_path = random_path(board.crowns[Player.RED], board.crowns[Player.BLUE])
 
-    # 3. 生成指定数量的山
+    # 4. 生成指定数量的山
     while len(board.mountains) < mountain_cnt:
         mountain = (random.randrange(0, width), random.randrange(0, width))
         if (mountain not in protected_path) and (mountain not in board.mountains):
             board.mountains.append(mountain)
 
-    # 4. 生成指定数量的 NPC 塔
+    # 5. 生成指定数量的 NPC 塔
     while len(board.NPC_cities) < NPC_city_cnt:
         city = (random.randrange(0, width), random.randrange(0, width))
         if (city not in list(board.crowns.values())) and (city not in board.mountains) and (city not in board.NPC_cities):
@@ -135,6 +143,130 @@ def convert_to_mif(boards: List[Board], mif_file_path):
         print('END;', file=f)
 
 
+def convert_to_sv_localparam(boards: List[Board], sv_file_path):
+    """
+    传入的参数为 Board 列表，生成 sv 代码
+    """
+
+    name = "init_boards"
+    words_cnt = 32 * len(boards) # word 的个数。每张棋盘 32 个 word（32 个特殊元素），有 len(boards) 张棋盘
+
+    def print_a_word(h, v, type):
+         print("    10'b{0:04b}{1:04b}{2:02b},".format(h, v, type), file=f)
+
+    with open(sv_file_path, 'w', encoding='utf-8') as f:
+        print('localparam [0:%d][9:0] %s = {' % (words_cnt - 1, name), file=f)
+        for board in boards:
+            # 输出王城位置
+            print_a_word(board.crowns[Player.RED ][0], board.crowns[Player.RED ][1], 0b10); # RED CROWN
+            print_a_word(board.crowns[Player.BLUE][0], board.crowns[Player.BLUE][1], 0b11); # RED CROWN
+            # 输出山位置
+            for (h, v) in board.mountains:
+                print_a_word(h, v, 0b00)
+            # 输出 NPC 塔位置
+            for (h, v) in board.NPC_cities:
+                print_a_word(h, v, 0b01)
+            # 输出占位符
+            for _ in range(32 - 2 - len(board.mountains) - len(board.NPC_cities)):
+                print_a_word(0xF, 0xF, 0b00); # (h, v) = (0xF, 0xF) 用于占位（即表示该格子为 NPC 普通领地），type 字段无意义
+        print('};', file=f)
+
+
+def cell_to_str(board: Board, h, v):
+    """
+        example: Cell'({NPC, MOUNTAIN, 9'd0})
+    """
+    if Player.RED in board.crowns and  (h, v) == board.crowns[Player.RED]:
+        owner = "RED"
+        type = "CROWN"
+        troop = 9
+    elif Player.BLUE in board.crowns and (h, v) == board.crowns[Player.BLUE]:
+        owner = "BLUE"
+        type = "CROWN"
+        troop = 9
+    elif (h, v) in board.mountains:
+        owner = "NPC"
+        type = "MOUNTAIN"
+        troop = 0
+    elif (h, v) in board.NPC_cities:
+        owner = "NPC"
+        type = "CITY"
+        troop = 0
+    else:
+        owner = "NPC"
+        type = "TERRITORY"
+        troop = 0
+
+    # return "'{.owner = %s, .piece_type = %s, .troop = 9'd%d}" % (owner, type, troop)
+    return "'{%s, %s, 9'd%d}" % (owner, type, troop)
+
+def whole_board_to_str(board: Board):
+    result = []
+    for h in range(BOARD_WIDTH - 1, -1, -1):  # BOARD_WIDTH-1, ..., 1, 0
+        column = []
+        for v in range(BOARD_WIDTH - 1, -1, -1):
+            column.append(cell_to_str(board, h, v))
+        column = "'{" + ", ".join(column) + "}"
+        result.append(column)
+    result = "'{" + ", ".join(result) + "}"
+    return result
+
+def convert_to_sv_const(boards: List[Board], sv_file_path):
+    """
+    传入的参数为 Board 列表，生成 sv 代码
+    """
+
+    name_init_boards = "init_boards"
+    name_crowns_pos_RED = "crowns_pos_RED"
+    name_crowns_pos_BLUE = "crowns_pos_BLUE"
+
+    with open(sv_file_path, 'w', encoding='utf-8') as f:
+        # 输出棋盘
+        print('const Cell [0: MAX_RANDOM_BOARD - 1][BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0] %s = ' % (name_init_boards), file=f)
+        result = "'{\n"
+        for id, board in enumerate(boards):
+            if not id == len(boards) - 1:
+                result += "    " + whole_board_to_str(board) + ",\n"
+            else: # last one
+                result += "    " + whole_board_to_str(board) + "\n"
+                
+        result += "};"
+        print(result, file=f)
+        # 输出红方王城
+        print('const Position [0: MAX_RANDOM_BOARD - 1] %s = ' % (name_crowns_pos_RED), file=f)
+        result = []
+        for board in boards:
+            result.append("'{'d%d, 'd%d}" % (board.crowns[Player.RED][0], board.crowns[Player.RED][1]))
+        result = "'{\n" + ", ".join(result) + "\n};"
+        print(result, file=f)
+        # 输出红方王城
+        print('const Position [0: MAX_RANDOM_BOARD - 1] %s = ' % (name_crowns_pos_BLUE), file=f)
+        result = []
+        for board in boards:
+            result.append("'{'d%d, 'd%d}" % (board.crowns[Player.BLUE][0], board.crowns[Player.BLUE][1]))
+        result = "'{\n" + ", ".join(result) + "\n};"
+        print(result, file=f)
+
+
+def convert_to_sv_casez(boards: List[Board], sv_file_path):
+    """
+    传入的参数为 Board 列表，生成 sv 代码
+    """
+    
+    with open(sv_file_path, 'w', encoding='utf-8') as f:
+        # 输出棋盘
+        print('casez (random_board)', file=f)
+        for id, board in enumerate(boards):
+            crowns_pos_RED  = "'{'d%d, 'd%d}" % (board.crowns[Player.RED ][0], board.crowns[Player.RED ][1])
+            crowns_pos_BLUE = "'{'d%d, 'd%d}" % (board.crowns[Player.BLUE][0], board.crowns[Player.BLUE][1])
+            print(f"    {id}: begin", file=f)
+            print(f"        cells <= {whole_board_to_str(board)};", file=f)
+            print(f"        crowns_pos[RED ] <= {crowns_pos_RED};", file=f)
+            print(f"        crowns_pos[BLUE] <= {crowns_pos_BLUE};", file=f)
+            print(f"    end", file=f)
+        print('endcase', file=f)
+            
+
 def get_args():
     """
     解析命令行参数： 生成的初始局面数量、MIF 文件地址
@@ -143,8 +275,9 @@ def get_args():
 
     # 添加命令行参数
     # parser.add_argument('-w', '--width', dest='board_width',   type=int,  default=10,  help='board width')
-    parser.add_argument('-n', '--num',   dest='board_num',     type=int,  default=128, help='board num')
-    parser.add_argument('-f', '--file',  dest='mif_file_path', type=Path, default=Path.cwd() / f'random_boards-{current_time}.mif', help='output MIF file path')
+    parser.add_argument('-n', '--num', dest='board_num',     type=int,  default=128, help='board num')
+    parser.add_argument('-m', '--mif', dest='mif_file_path', type=Path, default=Path.cwd() / 'result' / f'random_boards-{current_time}.mif', help='output MIF file path')
+    parser.add_argument('-s', '--sv',  dest='sv_file_path',  type=Path, default=Path.cwd() / 'result' / f'random_boards-{current_time}.sv',  help='output sv file path')
     
     # 从命令行中解析参数
     args = parser.parse_args()
@@ -179,4 +312,25 @@ if __name__ == "__main__":
             f.write(str(board))
             f.write("\n")
 
-    convert_to_mif(boards, args.mif_file_path)
+    # convert_to_mif(boards, args.mif_file_path)
+    # convert_to_sv_localparam(boards, args.sv_file_path)
+    # convert_to_sv_const(boards, args.sv_file_path)
+    # convert_to_sv_casez(boards, args.sv_file_path)
+    print(whole_board_to_str(Board(BOARD_WIDTH)) + ";")
+
+
+    ## [TEST]
+    # print("{")
+    # for _ in range(10):
+    #     print("{" + ", ".join(["Cell'({NPC, MOUNTAIN, 9'd0})"] * 10) + "},")
+    # print("};")
+
+    # print("{")
+    # for _ in range(10):
+    #     print("{" + ", ".join(["Cell'({3'b000, 2'b00, 9'd0})"] * 10) + "},")
+    # print("};")
+
+    # print("{" + ", ".join(["Cell'({NPC, MOUNTAIN, 9'd0})"] * 100) + "};")
+
+    # print("{" + ", ".join(["14'b0"] * 100) + "};")
+
