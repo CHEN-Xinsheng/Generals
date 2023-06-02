@@ -7,6 +7,7 @@ module Game_Player
             LOG2_PIECE_TYPE_CNT  = 2, 
             LOG2_MAX_TROOP       = 9, 
             LOG2_MAX_ROUND       = 12,
+            MAX_ROUND            = 999,
             LOG2_MAX_CURSOR_TYPE = 2,
             MAX_STEP_TIME        = 15,
             LOG2_MAX_STEP_TIME   = 5,
@@ -26,6 +27,7 @@ module Game_Player
     output wire [$clog2(MAX_RANDOM_BOARD) - 1: 0]   chosen_random_board_o_test,     // 随机产生的初始棋盘序号
     output wire [2: 0]                              state_o_test,                   // 游戏当前状态
     output wire [11:0]                              init_board_address_o_test,      // 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
+    output wire [LOG2_MAX_PLAYER_CNT - 1:0]         winner_o_test,                  // 胜者
     //// [TEST END]
 
     //// input
@@ -162,6 +164,7 @@ assign operation_o_test      = operation;                               // 当�
 assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间
 assign round_o_test          = round;                                   // 当前回合数
 assign state_o_test          = state;                                   // 游戏当前状态
+assign winner_o_test         = winner;                                  // 胜者
 // assign init_board_address_o_test = init_board_address;                  // 在初始地图库中，当前读到的地址
 // [TEST END]
 
@@ -295,23 +298,14 @@ task automatic move_piece_to(Position target_pos);
                 end else begin
                     update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
                 end
-                // 接下来进行回合切换
-                state <= ROUND_SWITCH;
+                // 接下来进行胜负判断
+                state <= CHECK_WIN;
             end
             // 如果目标位置是山
             MOUNTAIN: ; // 不做响应
             default:  ; // assert 这种情况不应出现
         endcase
-    // 如果目标位置属于己方
-    end else if (cells[target_pos.h][target_pos.v].owner == current_player) begin
-        if (cursor_type == MOVE_TOTAL) begin
-            update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
-        end else begin
-            update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
-        end
-        // 接下来进行回合切换
-        state <= ROUND_SWITCH;
-    // 如果目标位置属于其他玩家
+    // 如果目标位置属于玩家
     end else begin
         if (cursor_type == MOVE_TOTAL) begin
             update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
@@ -356,6 +350,18 @@ task automatic check_win();
     end else if (cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].owner != BLUE) begin
         winner <= RED;
         state  <= GAME_OVER;
+    // 否则，如果已经达到回合上限，游戏结束，并根据王城兵力决定胜负
+    end else if (step_cnt[0] == 1 && round == MAX_ROUND) begin
+        if          (cells[crowns_pos[RED ].h][crowns_pos[RED ].v].troop > cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].troop) begin
+            winner <= RED;
+            state  <= GAME_OVER;
+        end else if (cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].troop > cells[crowns_pos[RED ].h][crowns_pos[RED ].v].troop) begin
+            winner <= BLUE;
+            state  <= GAME_OVER;
+        end else begin
+            winner <= NPC;    // 判定为平局
+            state  <= GAME_OVER;
+        end
     // 否则，游戏继续，进行回合切换
     end else begin
         state <= ROUND_SWITCH;
@@ -373,7 +379,7 @@ task automatic round_switch();
     step_cnt <= step_cnt + 1;
     // 每回合结束时，增加兵力
     if (step_cnt[0] == 1) begin
-        // 每 15 回合结束时，所有玩家的格子增加 1 兵力
+        // 每 16 回合结束时，所有玩家的格子增加 1 兵力
         if (round[3:0] == 4'b0000) begin
             for (byte h = 0; h < BORAD_WIDTH; ++h) begin
                 for (byte v = 0; v < BORAD_WIDTH; ++v) begin
