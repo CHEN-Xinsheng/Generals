@@ -221,7 +221,7 @@ wire [7:0]             gen_red;  // 游戏逻辑部分生成的图像
 wire [7:0]             gen_green;
 wire [7:0]             gen_blue;
 wire                   use_gen;  // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
-Game_Player #(
+Game_Controller #(
         .VGA_WIDTH             (VGA_WIDTH),
         .BORAD_WIDTH           (BORAD_WIDTH), 
         .LOG2_BORAD_WIDTH      (LOG2_BORAD_WIDTH),
@@ -235,7 +235,7 @@ Game_Player #(
         .MAX_STEP_TIME         (MAX_STEP_TIME),
         .LOG2_MAX_STEP_TIME    (LOG2_MAX_STEP_TIME),
         .MAX_RANDOM_BOARD      (MAX_RANDOM_BOARD)
-    ) game_player (
+    ) game_controller (
         //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
         .cursor_h_o_test            (cursor_h_o_test),
         .cursor_v_o_test            (cursor_v_o_test),
@@ -266,14 +266,14 @@ Game_Player #(
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
         .keyboard_ready             (keyboard_ready),  // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
         .keyboard_data              (keyboard_data),
-        // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
+        // 与 Screen_Controller（的 vga 模块）交互： 获取当前的横纵坐标
         .hdata                      (hdata),
         .vdata                      (vdata),
 
         //// output
         // 与 Keyboard_Decoder 交互：输出键盘操作已被读取的信号
         .keyboard_read_fin          (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
-        // 与 Pixel_Controller 交互：输出当前像素棋局图像，以及该像素是显示背景(use_gen=0)还是棋子(use_gen=1)
+        // 与 Screen_Controller 交互：输出当前像素棋局图像，以及该像素是显示背景(use_gen=0)还是棋子(use_gen=1)
         .gen_red                    (gen_red),
         .gen_green                  (gen_green),
         .gen_blue                   (gen_blue),
@@ -282,7 +282,7 @@ Game_Player #(
 
 
 // 显示控制模块
-Pixel_Controller #(
+Screen_Controller #(
         .VGA_WIDTH  (VGA_WIDTH),
         .HSIZE      (HSIZE),
         .HFP        (HFP),
@@ -294,7 +294,7 @@ Pixel_Controller #(
         .VMAX       (VMAX),
         .HSPP       (HSPP),
         .VSPP       (VSPP)
-    ) pixel_controller (
+    ) screen_controller (
         //// input 
         // 时钟、复位
         .clk_vga       (clk_vga),       // vga 输入时钟 (25M)

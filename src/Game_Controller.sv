@@ -1,4 +1,4 @@
-module Game_Player
+module Game_Controller
 #(parameter VGA_WIDTH            = 0, 
             BORAD_WIDTH          = 10, 
             LOG2_BORAD_WIDTH     = 4, 
@@ -40,7 +40,7 @@ module Game_Player
     input wire                    keyboard_ready,
     input wire [2: 0]             keyboard_data,
 
-    // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
+    // 与 Screen_Controller（的 vga 模块）交互： 获取当前的横纵坐标
     input wire [VGA_WIDTH - 1: 0] hdata,
     input wire [VGA_WIDTH - 1: 0] vdata,
 

@@ -80,10 +80,10 @@ set_global_assignment -name VERILOG_FILE src/dpy_scan.v
 set_global_assignment -name VERILOG_FILE src/vga.v
 set_global_assignment -name SOURCE_TCL_SCRIPT_FILE io.tcl
 set_global_assignment -name SYSTEMVERILOG_FILE src/mod_top.sv
-set_global_assignment -name SYSTEMVERILOG_FILE src/Pixel_Controller.sv
+set_global_assignment -name SYSTEMVERILOG_FILE src/Screen_Controller.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/Background_Painter.sv
 set_global_assignment -name SYSTEMVERILOG_FILE src/Keyboard_Decoder.sv
-set_global_assignment -name SYSTEMVERILOG_FILE src/Game_Player.sv
+set_global_assignment -name SYSTEMVERILOG_FILE src/Game_Controller.sv
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_bluecity.qip
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_bluecrown.qip
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_redcity.qip

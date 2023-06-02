@@ -1,4 +1,4 @@
-module Pixel_Controller
+module Screen_Controller
 #(parameter VGA_WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, VSPP = 0)
 (
     // 时钟、复位
