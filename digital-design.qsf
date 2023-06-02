@@ -116,4 +116,7 @@ set_global_assignment -name QIP_FILE ip/ram_piece/ram_bignumber7.qip
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_bignumber8.qip
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_bignumber9.qip
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_50percent.qip
+set_global_assignment -name QIP_FILE ip/random_boards/Random_Boards.qip
+set_global_assignment -name SYSTEMVERILOG_FILE src/Counter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE src/Random_Boards_Library.sv
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

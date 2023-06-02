@@ -89,7 +89,7 @@ wire clk_50M;
 wire clk_vga;
 ip_pll u_ip_pll(
     .inclk0 (clk_100M),
-    .c0     (clk_50M ),  // 50MHz 像素时钟
+    .c0     (clk_50M ),  // 50MHz 时钟，用于游戏逻辑
     .c1     (clk_vga )   // 25MHz 像素时钟
 );
 
@@ -115,6 +115,7 @@ parameter LOG2_MAX_ROUND        = 12;  // 允许的最大回合数，对 2 取�
 parameter LOG2_MAX_CURSOR_TYPE  = 2;   // 光标种类数，对 2 取对数（向上取整）
 parameter MAX_STEP_TIME         = 15;  // 每次操作最长允许时间
 parameter LOG2_MAX_STEP_TIME    = $clog2(MAX_STEP_TIME);   // 每次操作最长允许时间，对 2 取对数（向上取整）
+parameter MAX_RANDOM_BOARD      = 128; // 从多少张初始地图中随机抽取一张
 // vga 相关
 parameter VGA_WIDTH = 10;
 parameter HSIZE     = 640;
@@ -139,28 +140,34 @@ parameter VSPP      = 1;
 // // [TEST END] test keyoard
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
-logic [LOG2_BORAD_WIDTH - 1: 0]     cursor_h_o_test;         // 当前光标位置的横坐标（h 坐标）
-logic [LOG2_BORAD_WIDTH - 1: 0]     cursor_v_o_test;         // 当前光标位置的纵坐标（v 坐标）
-logic [LOG2_MAX_TROOP - 1: 0]       troop_o_test;            // 当前格兵力
-logic [LOG2_MAX_PLAYER_CNT - 1: 0]  owner_o_test;            // 当前格归属方
-logic [LOG2_PIECE_TYPE_CNT - 1: 0]  piece_type_o_test;       // 当前格棋子类型
-logic [LOG2_MAX_PLAYER_CNT - 1: 0]  current_player_o_test;   // 当前回合玩家
-logic [LOG2_MAX_PLAYER_CNT - 1: 0]  next_player_o_test;      // 下一回合玩家
-logic [LOG2_MAX_CURSOR_TYPE -1: 0]  cursor_type_o_test;      // 当前光标类型
-logic [2: 0]                        operation_o_test;        // 当前操作队列
-logic [LOG2_MAX_STEP_TIME -1: 0]    step_timer_o_test;       // 当前回合剩余时间
-logic [LOG2_MAX_ROUND - 1: 0]       round_o_test;            // 当前回合数
+logic [LOG2_BORAD_WIDTH - 1: 0]             cursor_h_o_test;            // 当前光标位置的横坐标（h 坐标）
+logic [LOG2_BORAD_WIDTH - 1: 0]             cursor_v_o_test;            // 当前光标位置的纵坐标（v 坐标）
+logic [LOG2_MAX_TROOP - 1: 0]               troop_o_test;               // 当前格兵力
+logic [LOG2_MAX_PLAYER_CNT - 1: 0]          owner_o_test;               // 当前格归属方
+logic [LOG2_PIECE_TYPE_CNT - 1: 0]          piece_type_o_test;          // 当前格棋子类型
+logic [LOG2_MAX_PLAYER_CNT - 1: 0]          current_player_o_test;      // 当前回合玩家
+logic [LOG2_MAX_PLAYER_CNT - 1: 0]          next_player_o_test;         // 下一回合玩家
+logic [LOG2_MAX_CURSOR_TYPE -1: 0]          cursor_type_o_test;         // 当前光标类型
+logic [2: 0]                                operation_o_test;           // 当前操作队列
+logic [LOG2_MAX_STEP_TIME -1: 0]            step_timer_o_test;          // 当前回合剩余时间
+logic [LOG2_MAX_ROUND - 1: 0]               round_o_test;               // 当前回合数
+logic [$clog2(MAX_RANDOM_BOARD) - 1: 0]     chosen_random_board_o_test; // 随机产生的初始棋盘序号
+logic [2: 0]                                state_o_test;               // 游戏当前状态
+logic [11:0]                                init_board_address_o_test;  // 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
 
-assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
-assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
+
+assign number[31:28] = owner_o_test;          // 1   当前格归属方   0 NPC, 1 RED, 2 BLUE
+assign number[27:24] = piece_type_o_test;     // 2   当前格棋子类型  0 TERRITORY, 1 MOUNTAIN, 2 CROWN, 3 CITY 
+// assign number[31:24] = init_board_address_o_test[7:0]; // 1-2 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
 assign number[23:16] = troop_o_test[7:0];     // 3-4 当前格兵力
-assign number[15:12] = round_o_test[3:0];     // 5   当前回合数
-// assign number[15:12] = owner_o_test;          // 5   当前格归属方
+assign number[15:12] = state_o_test;          // 5   游戏当前状态   0 READY, 3 IN_ROUND, 6 GAME_OVER
 assign number[11: 8] = step_timer_o_test;     // 6   当前回合剩余时间
-// assign number[11: 8] = piece_type_o_test;     // 6   当前格棋子类型
-assign number[ 7: 4] = current_player_o_test; // 7   当前回合玩家
-assign number[ 3: 0] = cursor_type_o_test;    // 8   当前光标类型
-// assign number[ 3: 0] = next_player_o_test;    // 8   下一回合玩家
+assign number[ 7: 0] = chosen_random_board_o_test; // 7-8 随机产生的初始棋盘序号
+// assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
+// assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
+// assign number[15:12] = round_o_test[3:0];     // 5   当前回合数
+// assign number[ 7: 4] = current_player_o_test; // 7   当前回合玩家
+// assign number[ 3: 0] = cursor_type_o_test;    // 8   当前光标类型
 // [TEST END]
 
 
@@ -224,43 +231,50 @@ Game_Player #(
         .LOG2_MAX_ROUND        (LOG2_MAX_ROUND),
         .LOG2_MAX_CURSOR_TYPE  (LOG2_MAX_CURSOR_TYPE),
         .MAX_STEP_TIME         (MAX_STEP_TIME),
-        .LOG2_MAX_STEP_TIME    (LOG2_MAX_STEP_TIME)
+        .LOG2_MAX_STEP_TIME    (LOG2_MAX_STEP_TIME),
+        .MAX_RANDOM_BOARD      (MAX_RANDOM_BOARD)
     ) game_player (
         //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
-        .cursor_h_o_test       (cursor_h_o_test),
-        .cursor_v_o_test       (cursor_v_o_test),
-        .troop_o_test          (troop_o_test),
-        .owner_o_test          (owner_o_test),
-        .piece_type_o_test     (piece_type_o_test),
-        .current_player_o_test (current_player_o_test),
-        .next_player_o_test    (next_player_o_test),
-        .cursor_type_o_test    (cursor_type_o_test),
-        .operation_o_test      (operation_o_test),
-        .step_timer_o_test     (step_timer_o_test),
-        .round_o_test          (round_o_test),
+        .cursor_h_o_test            (cursor_h_o_test),
+        .cursor_v_o_test            (cursor_v_o_test),
+        .troop_o_test               (troop_o_test),
+        .owner_o_test               (owner_o_test),
+        .piece_type_o_test          (piece_type_o_test),
+        .current_player_o_test      (current_player_o_test),
+        .next_player_o_test         (next_player_o_test),
+        .cursor_type_o_test         (cursor_type_o_test),
+        .operation_o_test           (operation_o_test),
+        .step_timer_o_test          (step_timer_o_test),
+        .round_o_test               (round_o_test),
+        .chosen_random_board_o_test (chosen_random_board_o_test),
+        .state_o_test               (state_o_test),
+        .init_board_address_o_test  (init_board_address_o_test),
         //// [TEST END]
 
         //// input
         // 时钟信号和重置信号
-        .clock             (clk_50M),
-        .start             (clock_btn),
-        .reset             (reset_btn),
-        .clk_vga           (clk_vga),
+        // .clock                      (clock_btn),   // [TEST]
+        .clock                      (clk_50M),
+        .clock_random_first_player  (clk_100M),
+        .start                      (clock_btn),
+        // .start                      (~dip_sw[0]),  // [TEST]
+        .reset                      (reset_btn),
+        .clk_vga                    (clk_vga),
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
-        .keyboard_ready    (keyboard_ready),  // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
-        .keyboard_data     (keyboard_data),
+        .keyboard_ready             (keyboard_ready),  // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
+        .keyboard_data              (keyboard_data),
         // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
-        .hdata             (hdata),
-        .vdata             (vdata),
+        .hdata                      (hdata),
+        .vdata                      (vdata),
 
         //// output
         // 与 Keyboard_Decoder 交互：输出键盘操作已被读取的信号
-        .keyboard_read_fin (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
+        .keyboard_read_fin          (keyboard_read_fin), // 逻辑模块 -> 键盘输入模块 的信号，1表示数据已经被读取
         // 与 Pixel_Controller 交互：输出当前像素棋局图像，以及该像素是显示背景(use_gen=0)还是棋子(use_gen=1)
-        .gen_red           (gen_red),
-        .gen_green         (gen_green),
-        .gen_blue          (gen_blue),
-        .use_gen           (use_gen)
+        .gen_red                    (gen_red),
+        .gen_green                  (gen_green),
+        .gen_blue                   (gen_blue),
+        .use_gen                    (use_gen)
 );
 
 

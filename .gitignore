@@ -87,3 +87,4 @@ PLLJ_PLLSPE_INFO.txt
 # utils
 /utils/log
 /utils/__pycache__
+/utils/result
