@@ -1,6 +1,6 @@
 from PIL import Image  
 import numpy as np  
-Image = Image.open('50%.png')   
+Image = Image.open('winner.png')   
 Image_array = np.array(Image) 
 print(Image_array.shape)
 from pprint import pprint
@@ -9,10 +9,10 @@ import matplotlib.pyplot as pyplot
  
 contents = []
 for i in range(40):
-    for j in range(40):
+    for j in range(120):
         for k in range(4):
             contents.append(int(Image_array[i][j][k]))
-with open('50%.mif', 'w') as wf:
+with open('winner.mif', 'w') as wf:
     print('WIDTH = 32;', file=wf)
     print('DEPTH = 6400;', file=wf)
     print('ADDRESS_RADIX = HEX;', file=wf)

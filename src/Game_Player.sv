@@ -555,6 +555,7 @@ endtask
 //// [游戏显示部分 BEGIN]
 logic [15:0] address;//ram地址
 logic [15:0] numaddress;
+logic [15:0] winneraddress;
 logic [31:0] bluecity_ramdata;
 logic [31:0] bluecrown_ramdata;
 logic [31:0] redcity_ramdata;
@@ -583,13 +584,15 @@ logic [31:0] bignumber6_ramdata;
 logic [31:0] bignumber7_ramdata;
 logic [31:0] bignumber8_ramdata;
 logic [31:0] bignumber9_ramdata;
-logic [31:0] white_ramdata;
+logic [31:0] percent_ramdata;
+logic [31:0] winner_ramdata;
 logic [31:0] numberdata;
 logic [31:0] bignumberdata;
 logic [31:0] ramdata;//选择后的用作输出的ram数据
 logic [31:0] indata = 32'b0;//用于为ram输入赋值（没用）
 logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;//取模后的v
 logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;//取模后的h
+logic [VGA_WIDTH - 1: 0] winner_hdata_to_ram = 0;//取模后的h
 logic [LOG2_BORAD_WIDTH - 1:0] cur_v;//从像素坐标转换到数组v坐标
 logic [LOG2_BORAD_WIDTH - 1:0] cur_h;//从像素坐标转换到数组h坐标
 logic is_gen;
@@ -608,6 +611,7 @@ assign cur_piecetype = cells[cur_h][cur_v].piece_type;
 assign cur_troop = cells[cur_h][cur_v].troop;
 int cursor_array [0:9] = '{'d40, 'd80, 'd120, 'd160, 'd200, 'd240, 'd280, 'd320, 'd360, 'd400};
 assign address = vdata_to_ram*40 + hdata_to_ram;
+assign winneraddress = vdata_to_ram*120 + winner_hdata_to_ram;
 assign bignumber = (vdata>100) ? step_timer:round;
 
 always_comb begin
@@ -643,6 +647,11 @@ always_comb begin
             gen_blue = bignumberdata[23:16];
         end
     end else 
+    if ((vdata <= 240 && vdata > 200) && hdata >= 480 && hdata <= 600 && winner_ramdata[31:24]>=128) begin
+        gen_red = winner_ramdata[7:0];
+        gen_green = winner_ramdata[15:8];
+        gen_blue = winner_ramdata[23:16];
+    end else
     if ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) begin
         if (current_player == RED) begin
             gen_red = red_ramdata[7:0];
@@ -742,6 +751,13 @@ always_comb begin
     end else begin
         hdata_to_ram = 0;
         cur_h = 0;
+    end
+end
+always_comb begin
+    if (hdata>=480 && hdata<=600) begin
+        winner_hdata_to_ram = hdata - 480;
+    end else begin
+        winner_hdata_to_ram = 0;
     end
 end
 always_comb begin
@@ -928,11 +944,17 @@ always_comb begin
 end
 always_comb begin
     if ((((vdata <= 80 && vdata > 40) ||(vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0)
-    || ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) || ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 )) begin
+    || ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) 
+    || ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 )
+    || ((vdata <= 240 && vdata > 200)&& hdata >= 480 && hdata <= 600 )) begin
         is_gen = 1;
         ramdata = 0;
     end else
-    if (cur_troop!=0 && numberdata[31:24] == 255) begin
+    if (cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v && percent_ramdata[31:24] >= 128) begin
+        is_gen = 1;
+        ramdata = percent_ramdata;
+    end else
+    if (cur_troop!=0 && numberdata[31:24] >=128 && !(cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v)) begin
         is_gen = 1;
         ramdata = numberdata;
     end else 
@@ -1197,6 +1219,20 @@ ram_mountain ram_mountain_test (
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)
+);
+ram_50percent ram_50percent_test (
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(percent_ramdata)
+);
+ram_winner ram_winner_test (
+    .address(winneraddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(winner_ramdata)
 );
 always_comb begin
     if (hdata == 40 || hdata==80 || hdata==120 || hdata == 160|| hdata == 200 
