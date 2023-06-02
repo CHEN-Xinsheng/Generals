@@ -30,7 +30,6 @@ module Game_Player
 
     //// input
     input wire                    clock,
-    input wire                    clock_random_board,
     input wire                    clock_random_first_player,
     input wire                    start,              // 游戏开始
     input wire                    reset,
@@ -61,13 +60,13 @@ typedef enum logic [LOG2_MAX_PLAYER_CNT - 1:0]    {NPC, RED, BLUE} Player;
 typedef enum logic [LOG2_PIECE_TYPE_CNT - 1:0]    {TERRITORY,           MOUNTAIN,    CROWN,   CITY      } Piece;
                                                 // 普通领地（含空白格）， 山，         王城，    塔（城市）
 // 单元格结构体
-typedef struct {
+typedef struct packed {
     Player                        owner;        // 该格子归属方
     Piece                         piece_type;   // 该棋子类型
     reg [LOG2_MAX_TROOP - 1: 0]   troop;        // 该格子兵力值
 } Cell;
 // 平面坐标结构体
-typedef struct {
+typedef struct packed {
     logic [LOG2_BORAD_WIDTH - 1: 0]  h;         // 位置的横坐标（h 坐标）
     logic [LOG2_BORAD_WIDTH - 1: 0]  v;         // 位置的纵坐标（v 坐标）
 } Position;
@@ -100,8 +99,8 @@ typedef enum logic [2:0] {
 
 
 // 游戏数据
-Cell      cells      [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0];  // 棋盘结构体数组
-Position  crowns_pos [MAX_PLAYER_CNT - 1:0];                    // 每个玩家王城的位置
+Cell     [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0] cells;        // 棋盘结构体数组
+Position [MAX_PLAYER_CNT - 1:0]                   crowns_pos ;  // 每个玩家王城的位置
 
 Operation                               operation;              // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
 Player                                  current_player;         // 当前玩家
@@ -163,6 +162,7 @@ assign operation_o_test      = operation;                               // 当�
 assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间
 assign round_o_test          = round;                                   // 当前回合数
 assign state_o_test          = state;                                   // 游戏当前状态
+// assign init_board_address_o_test = init_board_address;                  // 在初始地图库中，当前读到的地址
 // [TEST END]
 
 //// [游戏内部数据 END]
@@ -418,64 +418,29 @@ endfunction
 logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] random_board;
 Counter #(.BIT_WIDTH($clog2(MAX_RANDOM_BOARD))) counter_random_board (
     // input
-    .clock      (clock_random_board),
+    .clock      (clock),
     .reset      (reset),
     // output
     .number_o   (random_board)
 );
-// [TEST BEGIN] 设置固定的初始棋盘序号，用于测试指定棋盘
-// assign random_board = 'h2c;
-// [TEST END]
-
+// // [TEST BEGIN] 设置固定的初始棋盘序号，用于测试指定棋盘
+// assign random_board = 'h3d;
+// // [TEST END]
 // [TEST BEGIN] 输出随机选中的初始棋盘序号
 logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] chosen_random_board;
 assign chosen_random_board_o_test = chosen_random_board;
 // [TEST END]
 
 
-// 从初始棋盘库中读取初始棋盘
-logic [11:0]                    init_board_address;
-logic [11:0]                    init_board_address_end;
-logic [9: 0]                    init_board_data;
-    // 解析所读出的数据的 3 个字段
-logic [LOG2_BORAD_WIDTH - 1: 0] init_board_h;
-logic [LOG2_BORAD_WIDTH - 1: 0] init_board_v;
-logic [LOG2_BORAD_WIDTH - 1: 0] init_board_type;
-assign init_board_h    = init_board_data[9: 6];
-assign init_board_v    = init_board_data[5: 2];
-assign init_board_type = Init_Board_Type'(init_board_data[1: 0]);
-typedef enum logic [1: 0] {
-    NPC_MOUNTAIN = 2'b00,
-    NPC_CITY     = 2'b01,
-    RED_CROWN    = 2'b10,
-    BLUE_CROWN   = 2'b11 
-} Init_Board_Type;
-// [TEST BEGIN] 输出当前读到的地址
-assign init_board_address_o_test = init_board_address;
-// [TEST END]
-
-
-Random_Boards random_boards (
-    .address (init_board_address),  // 读写操作的地址
-    .clock   (clock),               // 读写时钟
-    .data    (0),                   // 写入的数据，选择不写入(0)，故此位无意义
-    .wren    (0),                   // 是否写入
-    .q       (init_board_data)      // 读出的数据
-);
-
 // 等待开始游戏
 task automatic ready();
     // 如果此时开始按钮处于按下状态，那么生成随机数，并开始载入初始棋盘
     if (start) begin
         // 清空棋盘
-        for (int h = 0; h < BORAD_WIDTH; h++) begin
-            for (int v = 0; v < BORAD_WIDTH; v++) begin
-                cells[h][v] <= '{NPC, TERRITORY, 'h0};
-            end
-        end
+        cells <= '{default: '{ default: '{NPC, TERRITORY, 9'd0}}};
         // 准备开始载入初始棋盘
-        init_board_address     <= random_board << 5;  // 每张地图占 32 word，所以第 random_timer 的起始地址是 32 * random_timer
-        init_board_address_end <= (random_board + 1) << 5; // 终止地址是 32 * (random_timer + 1)
+        init_board_address <= random_board << 5;  // 每张地图占 32 word，所以第 random_timer 的起始地址是 32 * random_timer
+        read_word_cnt      <= 0;
         state <= LOAD_INIT_BOARD;
         // [TEST BEGIN] 记录随机产生的初始棋盘序号
         chosen_random_board <= random_board;
@@ -483,10 +448,43 @@ task automatic ready();
     end
 endtask 
 
+
+// 从初始棋盘库中读取初始棋盘
+logic [$clog2(MAX_RANDOM_BOARD) + 5 - 1:0]  init_board_address;     // MAX_RANDOM_BOARD 张初始地图，每张 32 个word，所以 word 总数（即地址大小）是 32*MAX_RANDOM_BOARD
+byte  read_word_cnt;        // 当前已经读的 word 个数
+logic [LOG2_BORAD_WIDTH - 1: 0] init_board_h;
+logic [LOG2_BORAD_WIDTH - 1: 0] init_board_v;
+logic [1: 0]                    init_board_type;
+typedef enum logic [1: 0] {
+    NPC_MOUNTAIN = 2'b00,
+    NPC_CITY     = 2'b01,
+    RED_CROWN    = 2'b10,
+    BLUE_CROWN   = 2'b11 
+} Init_Board_Type;
+
+Random_Boards_Library #(.WORDS_CNT(32*MAX_RANDOM_BOARD)) random_boards_library (
+    .address    (init_board_address),  // 读的地址
+    .h          (init_board_h),
+    .v          (init_board_v),
+    .piece_type (init_board_type)
+);
+
+// Random_Boards random_boards (
+//     .address (init_board_address),  // 读写操作的地址
+//     .clock   (clock),               // 读写时钟
+//     .data    (0),                   // 写入的数据，选择不写入(0)，故此位无意义
+//     .wren    (0),                   // 是否写入
+//     .q       (init_board_data)      // 读出的数据
+// );
+// assign init_board_h    = init_board_data[9:6];
+// assign init_board_v    = init_board_data[5:2];
+// assign init_board_type = init_board_data[1:0];
+
+
 // 载入初始棋盘
 task automatic load_init_board();
     // 如果初始棋盘尚未读完
-    if (init_board_address != init_board_address_end) begin
+    if (read_word_cnt < 32) begin
         // 读出 1 word 的数据，对应棋盘中的一个“特殊元素”（王城/山/NPC城市）
         // 不处理占位符：(h, v) = (0xF, 0xF) 表示这个 word 是占位符，仅用于将该棋盘填充至 32 word，故此情况不处理
         if (!(init_board_h == 'hF && init_board_v == 'hF)) begin
@@ -508,12 +506,14 @@ task automatic load_init_board();
         end
         // 下一周期的读地址 + 1 word
         init_board_address <= init_board_address + 1;
+        read_word_cnt      <= read_word_cnt + 1;
     // 如果初始棋盘已经加载完毕
     end else begin
         // 转到 ABOUT_TO_START 状态，初始化其他游戏数据（然后将开始游戏）
         state <= ABOUT_TO_START;
     end
 endtask
+
 
 // 抽签器（循环计数器），用于抽签产生初始玩家
 logic random_first_player;

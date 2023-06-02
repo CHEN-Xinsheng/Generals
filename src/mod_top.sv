@@ -156,16 +156,16 @@ logic [2: 0]                                state_o_test;               // 游�
 logic [11:0]                                init_board_address_o_test;  // 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
 
 
-assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
-assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
+assign number[31:28] = owner_o_test;          // 1   当前格归属方   0 NPC, 1 RED, 2 BLUE
+assign number[27:24] = piece_type_o_test;     // 2   当前格棋子类型  0 TERRITORY, 1 MOUNTAIN, 2 CROWN, 3 CITY 
 // assign number[31:24] = init_board_address_o_test[7:0]; // 1-2 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
 assign number[23:16] = troop_o_test[7:0];     // 3-4 当前格兵力
-assign number[15:12] = state_o_test;          // 5   游戏当前状态
+assign number[15:12] = state_o_test;          // 5   游戏当前状态   0 READY, 3 IN_ROUND, 6 GAME_OVER
 assign number[11: 8] = step_timer_o_test;     // 6   当前回合剩余时间
 assign number[ 7: 0] = chosen_random_board_o_test; // 7-8 随机产生的初始棋盘序号
+// assign number[31:28] = cursor_h_o_test;       // 1   当前光标位置的横坐标（h 坐标）
+// assign number[27:24] = cursor_v_o_test;       // 2   当前光标位置的纵坐标（v 坐标）
 // assign number[15:12] = round_o_test[3:0];     // 5   当前回合数
-// assign number[15:12] = owner_o_test;          // 5   当前格归属方
-// assign number[11: 8] = piece_type_o_test;     // 6   当前格棋子类型
 // assign number[ 7: 4] = current_player_o_test; // 7   当前回合玩家
 // assign number[ 3: 0] = cursor_type_o_test;    // 8   当前光标类型
 // [TEST END]
@@ -255,7 +255,6 @@ Game_Player #(
         // 时钟信号和重置信号
         // .clock                      (clock_btn),   // [TEST]
         .clock                      (clk_50M),
-        .clock_random_board         (clk_50M),
         .clock_random_first_player  (clk_100M),
         .start                      (clock_btn),
         // .start                      (~dip_sw[0]),  // [TEST]
