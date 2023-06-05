@@ -665,7 +665,7 @@ always_comb begin
             gen_red = winner_ramdata[7:0];
             gen_green = winner_ramdata[15:8];
             gen_blue = winner_ramdata[23:16];
-        end else if (draw_ramdata[31:24]>=128) begin
+        end else if (winner == NPC && draw_ramdata[31:24]>=128) begin
             gen_red = draw_ramdata[7:0];
             gen_green = draw_ramdata[15:8];
             gen_blue = draw_ramdata[23:16];
@@ -723,22 +723,6 @@ always_comb begin
     end
 end
 
-// Coordinate_Transfer #(
-//         .VGA_WIDTH(VGA_WIDTH),
-//         .LOG2_BORAD_WIDTH(LOG2_BORAD_WIDTH)
-//     ) coordinate_transfer_h (
-//         .coordinate(hdata),
-//         .coordinate_to_ram(hdata_to_ram),
-//         .coordinate_in_board(cur_h)
-// );
-// Coordinate_Transfer #(
-//         .VGA_WIDTH(VGA_WIDTH),
-//         .LOG2_BORAD_WIDTH(LOG2_BORAD_WIDTH)
-//     ) coordinate_transfer_v (
-//         .coordinate(vdata),
-//         .coordinate_to_ram(vdata_to_ram),
-//         .coordinate_in_board(cur_v)
-// );
 //通过打表避免使用除法取模，找到对应ram中的坐标和棋盘坐标
 always_comb begin
     if (hdata>=0 && hdata<40) begin
