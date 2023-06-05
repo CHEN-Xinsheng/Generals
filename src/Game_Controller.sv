@@ -219,11 +219,13 @@ endtask
 
 // 回合进行中
 task automatic in_round();
-    // 如果已超时，直接切换回合
+    // 如果已超时，仍先要判断胜负（因为可能已经达到最大回合数）
     if (step_timer == 0) begin
-        state <= ROUND_SWITCH;
+        state <= CHECK_WIN;
     end else begin
-    // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空、计时
+        // 计时
+        step_timer_tick();
+        // 如果当前有尚未结算的操作，那么：结算一次操作、将操作队列清空
         if (operation != NONE) begin
             casez (cursor_type)
                 CHOOSE: begin
@@ -278,8 +280,6 @@ task automatic in_round();
             // 标记当前操作队列为空
             operation <= NONE;
         end
-        // 计时
-        step_timer_tick();
     end
 endtask
 
