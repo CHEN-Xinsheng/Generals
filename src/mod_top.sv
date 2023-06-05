@@ -111,7 +111,7 @@ parameter LOG2_MAX_PLAYER_CNT   = $clog2(MAX_PLAYER_CNT + 1);   // 玩家数量�
 parameter LOG2_PIECE_TYPE_CNT   = 2;   // 棋子种类数量，对 2 取对数（向上取整）
 parameter LOG2_MAX_TROOP        = 9;   // 格子最大兵力数，对 2 取对数（向上取整）
 parameter LOG2_MAX_ROUND        = 12;  // 允许的最大回合数，对 2 取对数（向上取整）
-parameter MAX_ROUND             = 999; // 允许的最大回合数
+parameter ROUND_LIMIT           = 999; // 允许的最大回合数
 parameter LOG2_MAX_CURSOR_TYPE  = 2;   // 光标种类数，对 2 取对数（向上取整）
 parameter MAX_STEP_TIME         = 15;  // 每次操作最长允许时间
 parameter LOG2_MAX_STEP_TIME    = $clog2(MAX_STEP_TIME);   // 每次操作最长允许时间，对 2 取对数（向上取整）
@@ -230,7 +230,7 @@ Game_Controller #(
         .LOG2_PIECE_TYPE_CNT   (LOG2_PIECE_TYPE_CNT), 
         .LOG2_MAX_TROOP        (LOG2_MAX_TROOP), 
         .LOG2_MAX_ROUND        (LOG2_MAX_ROUND),
-        .MAX_ROUND             (MAX_ROUND),
+        .ROUND_LIMIT           (ROUND_LIMIT),
         .LOG2_MAX_CURSOR_TYPE  (LOG2_MAX_CURSOR_TYPE),
         .MAX_STEP_TIME         (MAX_STEP_TIME),
         .LOG2_MAX_STEP_TIME    (LOG2_MAX_STEP_TIME),
