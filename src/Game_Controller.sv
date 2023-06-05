@@ -617,8 +617,10 @@ assign cur_owner = cells[cur_h][cur_v].owner;
 assign cur_piecetype = cells[cur_h][cur_v].piece_type;
 assign cur_troop = cells[cur_h][cur_v].troop;
 int cursor_array [0:9] = '{'d40, 'd80, 'd120, 'd160, 'd200, 'd240, 'd280, 'd320, 'd360, 'd400};//打表避免乘法
-assign address = ((vdata_to_ram << 5) + (vdata_to_ram << 3)) + hdata_to_ram; // vdata_to_ram*40 + hdata_to_ram
-assign winneraddress = ((vdata_to_ram << 6) + (vdata_to_ram << 5) + (vdata_to_ram << 4) + (vdata_to_ram << 3)) + winner_hdata_to_ram;  // vdata_to_ram*120 + winner_hdata_to_ram;
+assign address = vdata_to_ram*40 + hdata_to_ram;
+// assign address = ((vdata_to_ram << 5) + (vdata_to_ram << 3)) + hdata_to_ram; // vdata_to_ram*40 + hdata_to_ram
+assign winneraddress = vdata_to_ram*120 + winner_hdata_to_ram;
+// assign winneraddress = ((vdata_to_ram << 6) + (vdata_to_ram << 5) + (vdata_to_ram << 4) + (vdata_to_ram << 3)) + winner_hdata_to_ram;  // vdata_to_ram*120 + winner_hdata_to_ram;
 assign bignumber = (vdata>100) ? step_timer:round;
 //主逻辑，用于生成gen_rgb
 always_comb begin
@@ -713,13 +715,14 @@ end
 always_comb begin
     //百位数字
     if (hdata_to_ram <= 17) begin
-        numaddress = ((vdata_to_ram << 5) + (vdata_to_ram << 3)) +hdata_to_ram+6;  // vdata_to_ram*40 +hdata_to_ram+6
+        numaddress = vdata_to_ram*40 + hdata_to_ram + 6;
+        // numaddress = ((vdata_to_ram << 5) + (vdata_to_ram << 3)) +hdata_to_ram+6;  // vdata_to_ram*40 +hdata_to_ram+6
     //十位数字
     end else if (hdata_to_ram >= 23) begin
-        numaddress = ((vdata_to_ram << 5) + (vdata_to_ram << 3)) +hdata_to_ram-6;
+        numaddress = vdata_to_ram*40 + + hdata_to_ram - 6;
     //个位数字
     end else begin 
-        numaddress = ((vdata_to_ram << 5) + (vdata_to_ram << 3)) +hdata_to_ram;
+        numaddress = vdata_to_ram*40 + hdata_to_ram;
     end
 end
 
