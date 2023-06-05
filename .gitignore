@@ -83,3 +83,8 @@ PLLJ_PLLSPE_INFO.txt
 !.vscode/extensions.json
 
 # End of https://www.toptal.com/developers/gitignore/api/alteraquartusii,vscode
+
+# utils
+/utils/log
+/utils/__pycache__
+/utils/result

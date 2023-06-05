@@ -1,4 +1,4 @@
-module Game_Player
+module Game_Controller
 #(parameter VGA_WIDTH            = 0, 
             BORAD_WIDTH          = 10, 
             LOG2_BORAD_WIDTH     = 4, 
@@ -7,24 +7,32 @@ module Game_Player
             LOG2_PIECE_TYPE_CNT  = 2, 
             LOG2_MAX_TROOP       = 9, 
             LOG2_MAX_ROUND       = 12,
+            MAX_ROUND            = 999,
             LOG2_MAX_CURSOR_TYPE = 2,
             MAX_STEP_TIME        = 15,
-            LOG2_MAX_STEP_TIME   = 5) (
+            LOG2_MAX_STEP_TIME   = 5,
+            MAX_RANDOM_BOARD     = 128) (
     //// [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
-    output wire [LOG2_BORAD_WIDTH - 1: 0]       cursor_h_o_test,         // 当前光标位置的横坐标（h 坐标）
-    output wire [LOG2_BORAD_WIDTH - 1: 0]       cursor_v_o_test,         // 当前光标位置的纵坐标（v 坐标）
-    output wire [LOG2_MAX_TROOP - 1: 0]         troop_o_test,            // 当前格兵力
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    owner_o_test,            // 当前格归属方
-    output wire [LOG2_PIECE_TYPE_CNT - 1: 0]    piece_type_o_test,       // 当前格棋子类型
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    current_player_o_test,   // 当前回合玩家
-    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]    next_player_o_test,      // 下一回合玩家
-    output wire [LOG2_MAX_CURSOR_TYPE -1: 0]    cursor_type_o_test,      // 当前光标类型
-    output wire [2: 0]                          operation_o_test,        // 当前操作队列
-    output wire [LOG2_MAX_STEP_TIME -1: 0]      step_timer_o_test,       // 当前回合剩余时间
+    output wire [LOG2_BORAD_WIDTH - 1: 0]           cursor_h_o_test,                // 当前光标位置的横坐标（h 坐标）
+    output wire [LOG2_BORAD_WIDTH - 1: 0]           cursor_v_o_test,                // 当前光标位置的纵坐标（v 坐标）
+    output wire [LOG2_MAX_TROOP - 1: 0]             troop_o_test,                   // 当前格兵力
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        owner_o_test,                   // 当前格归属方
+    output wire [LOG2_PIECE_TYPE_CNT - 1: 0]        piece_type_o_test,              // 当前格棋子类型
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        current_player_o_test,          // 当前回合玩家
+    output wire [LOG2_MAX_PLAYER_CNT - 1: 0]        next_player_o_test,             // 下一回合玩家
+    output wire [LOG2_MAX_CURSOR_TYPE -1: 0]        cursor_type_o_test,             // 当前光标类型
+    output wire [2: 0]                              operation_o_test,               // 当前操作队列
+    output wire [LOG2_MAX_STEP_TIME -1: 0]          step_timer_o_test,              // 当前回合剩余时间
+    output wire [LOG2_MAX_ROUND - 1: 0]             round_o_test,                   // 当前回合数
+    output wire [$clog2(MAX_RANDOM_BOARD) - 1: 0]   chosen_random_board_o_test,     // 随机产生的初始棋盘序号
+    output wire [2: 0]                              state_o_test,                   // 游戏当前状态
+    output wire [11:0]                              init_board_address_o_test,      // 当前读到初始棋盘 MIF 文件的地址，仅用于测试初始棋盘载入
+    output wire [LOG2_MAX_PLAYER_CNT - 1:0]         winner_o_test,                  // 胜者
     //// [TEST END]
 
     //// input
     input wire                    clock,
+    input wire                    clock_random_first_player,
     input wire                    start,              // 游戏开始
     input wire                    reset,
     input wire                    clk_vga,
@@ -32,7 +40,7 @@ module Game_Player
     input wire                    keyboard_ready,
     input wire [2: 0]             keyboard_data,
 
-    // 与 Pixel_Controller（的 vga 模块）交互： 获取当前的横纵坐标
+    // 与 Screen_Controller（的 vga 模块）交互： 获取当前的横纵坐标
     input wire [VGA_WIDTH - 1: 0] hdata,
     input wire [VGA_WIDTH - 1: 0] vdata,
 
@@ -46,20 +54,21 @@ module Game_Player
     output wire                   use_gen             // 当前像素是使用游戏逻辑生成的图像(1)还是背景图(0)
 );
 
+
 //// [游戏内部数据 BEGIN]
 // 玩家类型
 typedef enum logic [LOG2_MAX_PLAYER_CNT - 1:0]    {NPC, RED, BLUE} Player;
-// 每个棋子类型
+// 棋子类型
 typedef enum logic [LOG2_PIECE_TYPE_CNT - 1:0]    {TERRITORY,           MOUNTAIN,    CROWN,   CITY      } Piece;
                                                 // 普通领地（含空白格）， 山，         王城，    塔（城市）
 // 单元格结构体
-typedef struct {
+typedef struct packed {
     Player                        owner;        // 该格子归属方
     Piece                         piece_type;   // 该棋子类型
     reg [LOG2_MAX_TROOP - 1: 0]   troop;        // 该格子兵力值
 } Cell;
 // 平面坐标结构体
-typedef struct {
+typedef struct packed {
     logic [LOG2_BORAD_WIDTH - 1: 0]  h;         // 位置的横坐标（h 坐标）
     logic [LOG2_BORAD_WIDTH - 1: 0]  v;         // 位置的纵坐标（v 坐标）
 } Position;
@@ -68,7 +77,7 @@ typedef enum logic [LOG2_MAX_CURSOR_TYPE - 1:0] {
     CHOOSE     = 2'b00,
     MOVE_TOTAL = 2'b10,
     MOVE_HALF  = 2'b11
-} Cursor_type;
+} Cursor_Type;
 // 键盘操作类型
 typedef enum logic [2:0] {
     W     = 3'b000, 
@@ -81,29 +90,31 @@ typedef enum logic [2:0] {
 } Operation;
 // 游戏状态
 typedef enum logic [2:0] {
-    READY,         // 游戏准备开始
-    IN_ROUND,      // 回合内
-    CHECK_WIN,     // 判断胜负
-    ROUND_SWITCH,  // 回合切换中
-    GAME_OVER      // 游戏结束
+    READY,              // 游戏准备开始
+    LOAD_INIT_BOARD,    // 载入初始棋盘
+    ABOUT_TO_START,     // 初始棋盘载入完毕，初始化游戏数据
+    IN_ROUND,           // 回合内
+    CHECK_WIN,          // 判断胜负
+    ROUND_SWITCH,       // 回合切换中
+    GAME_OVER           // 游戏结束
 } State;
 
 
 // 游戏数据
-Cell      cells      [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0];  // 棋盘结构体数组
-Position  crowns_pos [MAX_PLAYER_CNT - 1:0];        // 每个玩家王城的位置
+Cell     [BORAD_WIDTH - 1: 0][BORAD_WIDTH - 1: 0] cells;        // 棋盘结构体数组
+Position [MAX_PLAYER_CNT - 1:0]                   crowns_pos ;  // 每个玩家王城的位置
 
-Operation                           operation;          // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
-Player                              current_player;     // 当前玩家
-Position                            cursor;             // 当前光标位置
-Cursor_type                         cursor_type;        // 光标所处模式：选择模式(0x)，行棋模式(1x)
-logic [LOG2_MAX_ROUND:     0]       step_cnt;           // 已经进行的行棋操作次数（包括超时，视为空操作）
-logic [LOG2_MAX_ROUND - 1: 0]       round;              // 当前回合（从 1 开始）
-Player                              winner;             // 胜者，该值仅当 state == GAME_OVER 时有效
-State                               state;              // 当前游戏状态
-logic [LOG2_MAX_STEP_TIME -1: 0]    step_timer;         // 当前回合剩余时间
+Operation                               operation;              // 最新一次操作。 operation == NONE 表示最近一次操作已被结算，否则尚未结算
+Player                                  current_player;         // 当前玩家
+Position                                cursor;                 // 当前光标位置
+Cursor_Type                             cursor_type;            // 光标所处模式：选择模式(0x)，行棋模式(1x)
+logic [LOG2_MAX_ROUND:     0]           step_cnt;               // 已经进行的行棋操作次数（包括超时，视为空操作）
+logic [LOG2_MAX_ROUND - 1: 0]           round;                  // 当前回合（从 1 开始）
+Player                                  winner;                 // 胜者
+State                                   state;                  // 当前游戏状态
+logic [LOG2_MAX_STEP_TIME -1: 0]        step_timer;             // 当前回合剩余时间
 
-assign round = (step_cnt + 1) >> 1;
+assign round = (step_cnt >> 1) + 1;
 
 // 游戏常数：玩家顺序表
 Player  next_player_table [MAX_PLAYER_CNT - 1:0];   // 每个玩家的下一玩家
@@ -118,32 +129,26 @@ initial begin
     end
 end
 
-// 游戏数据初始化
+// 初始游戏界面（按下 RESET 前）显示的数据
 initial begin
-    // 各方王城坐标
-    crowns_pos[RED]  = '{'d2, 'd3};
-    crowns_pos[BLUE] = '{'d8, 'd7};
-    // 初始化棋盘
+    // 初始游戏状态为等待开始
+    state = READY;
+    // 初始化棋盘。之后在随机生成开局棋盘时，未被填充的位置均为空格
     for (int h = 0; h < BORAD_WIDTH; h++) begin
         for (int v = 0; v < BORAD_WIDTH; v++) begin
-            if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
-                cells[h][v] = '{RED, CROWN, 'h57};
-            end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
-                cells[h][v] = '{BLUE, CROWN, 'h59};
-            end else begin
-                // 初始化为 RED 玩家的 CITY 类型，兵力 0x43
-                cells[h][v] = '{RED, CITY, 'h43};
-            end
+            cells[h][v] = '{NPC, TERRITORY, 'h0};
         end
     end
-
-    operation      = NONE;              // 初始时，操作队列置空
-    current_player = Player'(1);        // 先手玩家
+    // assert 以下值不会用到，因为在游戏开始时 (task ready() 中) 会被重写
+    crowns_pos[RED]  = '{'d2, 'd3};
+    crowns_pos[BLUE] = '{'d8, 'd7};
+    operation      = NONE;          // 初始界面不显示
+    current_player = Player'(1);
     cursor         = '{'d0, 'd0};
     cursor_type    = CHOOSE;
+    winner         = NPC;           // 初始界面不显示
     step_cnt       = 'd0;
-    winner         = NPC;               // 胜者，winner == NPC 表示尚未分出胜负
-    state          = IN_ROUND;          // 初始游戏状态为回合进行中（TODO：更改）
+    step_timer     = MAX_STEP_TIME;
 end
 
 // [TEST BEGIN] 将游戏内部数据输出用于测试，以 '_o_test' 作为后缀
@@ -156,7 +161,11 @@ assign current_player_o_test = current_player;                          // 当�
 assign next_player_o_test    = next_player_table[current_player];       // 下一回合玩家
 assign cursor_type_o_test    = cursor_type;                             // 当前光标类型
 assign operation_o_test      = operation;                               // 当前操作队列
-assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间 
+assign step_timer_o_test     = step_timer;                              // 当前回合剩余时间
+assign round_o_test          = round;                                   // 当前回合数
+assign state_o_test          = state;                                   // 游戏当前状态
+assign winner_o_test         = winner;                                  // 胜者
+// assign init_board_address_o_test = init_board_address;                  // 在初始地图库中，当前读到的地址
 // [TEST END]
 
 //// [游戏内部数据 END]
@@ -167,7 +176,6 @@ assign step_timer_o_test     = step_timer;                              // 当�
 always_ff @ (posedge clock, posedge reset) begin
     if (reset) begin
         state <= READY;
-        // TODO 开始计时
     end else begin
         // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
         if (keyboard_ready) begin
@@ -181,22 +189,23 @@ always_ff @ (posedge clock, posedge reset) begin
         end else begin
             keyboard_read_fin <= 'b0;
             casez (state)
-                READY:        ready();
-                IN_ROUND:     in_round();
-                CHECK_WIN:    check_win();
-                ROUND_SWITCH: round_switch();
-                GAME_OVER:    ;
+                READY:              ready();
+                LOAD_INIT_BOARD:    load_init_board();
+                ABOUT_TO_START:     about_to_start();
+                IN_ROUND:           in_round();
+                CHECK_WIN:          check_win();
+                ROUND_SWITCH:       round_switch();
+                GAME_OVER:          ;
                 default: ; // assert 这种情况不应出现
             endcase
         end
-        // TODO 计时，用于生成随机初始局面
     end
 end
 
 // step_timer 倒计时秒表
 logic [26: 0] step_timer_50M;
 task step_timer_tick();
-    if (step_timer_50M == 'd49_999_999) begin
+    if (step_timer_50M == 50_000_000 - 1) begin
         step_timer_50M <= 0;
         step_timer     <= step_timer - 1;
     end else begin
@@ -289,23 +298,14 @@ task automatic move_piece_to(Position target_pos);
                 end else begin
                     update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
                 end
-                // 接下来进行回合切换
-                state <= ROUND_SWITCH;
+                // 接下来进行胜负判断
+                state <= CHECK_WIN;
             end
             // 如果目标位置是山
             MOUNTAIN: ; // 不做响应
             default:  ; // assert 这种情况不应出现
         endcase
-    // 如果目标位置属于己方
-    end else if (cells[target_pos.h][target_pos.v].owner == current_player) begin
-        if (cursor_type == MOVE_TOTAL) begin
-            update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
-        end else begin
-            update_troop_and_owner(cells[cursor.h][cursor.v].troop >> 1, target_pos);
-        end
-        // 接下来进行回合切换
-        state <= ROUND_SWITCH;
-    // 如果目标位置属于其他玩家
+    // 如果目标位置属于玩家
     end else begin
         if (cursor_type == MOVE_TOTAL) begin
             update_troop_and_owner(cells[cursor.h][cursor.v].troop - 1,  target_pos);
@@ -350,6 +350,18 @@ task automatic check_win();
     end else if (cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].owner != BLUE) begin
         winner <= RED;
         state  <= GAME_OVER;
+    // 否则，如果已经达到回合上限，游戏结束，并根据王城兵力决定胜负
+    end else if (step_cnt[0] == 1 && round == MAX_ROUND) begin
+        if          (cells[crowns_pos[RED ].h][crowns_pos[RED ].v].troop > cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].troop) begin
+            winner <= RED;
+            state  <= GAME_OVER;
+        end else if (cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].troop > cells[crowns_pos[RED ].h][crowns_pos[RED ].v].troop) begin
+            winner <= BLUE;
+            state  <= GAME_OVER;
+        end else begin
+            winner <= NPC;    // 判定为平局
+            state  <= GAME_OVER;
+        end
     // 否则，游戏继续，进行回合切换
     end else begin
         state <= ROUND_SWITCH;
@@ -367,7 +379,7 @@ task automatic round_switch();
     step_cnt <= step_cnt + 1;
     // 每回合结束时，增加兵力
     if (step_cnt[0] == 1) begin
-        // 每 15 回合结束时，所有玩家的格子增加 1 兵力
+        // 每 16 回合结束时，所有玩家的格子增加 1 兵力
         if (round[3:0] == 4'b0000) begin
             for (byte h = 0; h < BORAD_WIDTH; ++h) begin
                 for (byte v = 0; v < BORAD_WIDTH; ++v) begin
@@ -407,52 +419,140 @@ function automatic logic is_player_city_or_crown (logic [LOG2_BORAD_WIDTH - 1: 0
         return 0;
 endfunction
 
+
+// 抽签器（循环计数器），用于生成随机初始局面
+logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] random_board;
+Counter #(.BIT_WIDTH($clog2(MAX_RANDOM_BOARD))) counter_random_board (
+    // input
+    .clock      (clock),
+    .reset      (reset),
+    // output
+    .number_o   (random_board)
+);
+// // [TEST BEGIN] 设置固定的初始棋盘序号，用于测试指定棋盘
+// assign random_board = 'h3d;
+// // [TEST END]
+// [TEST BEGIN] 输出随机选中的初始棋盘序号
+logic [$clog2(MAX_RANDOM_BOARD) - 1: 0] chosen_random_board;
+assign chosen_random_board_o_test = chosen_random_board;
+// [TEST END]
+
+
 // 等待开始游戏
 task automatic ready();
-    // 如果此时开始按钮处于按下状态，那么开始游戏
+    // 如果此时开始按钮处于按下状态，那么生成随机数，并开始载入初始棋盘
     if (start) begin
-        // TODO 生成随机初始局面
-        // 各方王城坐标
-        crowns_pos[RED]  <= '{'d2, 'd3};
-        crowns_pos[BLUE] <= '{'d8, 'd7};
-        // 初始化棋盘
-        for (int h = 0; h < BORAD_WIDTH; h++) begin
-            for (int v = 0; v < BORAD_WIDTH; v++) begin
-                // CROWN
-                if          (h == crowns_pos[RED ].h && v == crowns_pos[RED ].v) begin
-                    cells[h][v] <= '{RED, CROWN, 'd87};
-                end else if (h == crowns_pos[BLUE].h && v == crowns_pos[BLUE].v) begin
-                    cells[h][v] <= '{BLUE, CROWN, 'd89};
-                // NPC
-                end else if (v == 5) begin
-                    cells[h][v] <= '{NPC, CITY, 'd0};
-                end else if (h + v == 9 && h >= 6) begin
-                    cells[h][v] <= '{NPC, MOUNTAIN, 'd0};
-                // RED
-                end else if (2 <= h && h <= 5 && 2 <= v && v <= 5) begin
-                    cells[h][v] <= '{RED, CITY, 'd25};
-                // BLUE
-                end else if (7 <= h && h <= 9 && 5 <= v && v <= 9) begin
-                    cells[h][v] <= '{BLUE, CITY, 'd37};
-                // NPC TERRITORY
-                end else begin
-                    cells[h][v] <= '{NPC, TERRITORY, 'd0};
-                end
-            end
-        end
-
-        operation      <= NONE;             // 操作队列初始化为空
-        current_player <= Player'(1);       // TODO 先手玩家
-        cursor         <= '{'d2, 'd3};      // TODO 坐标在先手玩家的王城
-        cursor_type    <= CHOOSE;
-        step_cnt       <= 'd0;
-        winner         <= NPC;              // 胜者，winner == NPC 表示尚未分出胜负
-        // 开始游戏
-        state <= IN_ROUND;
-        // 重启计时器
-        step_timer_reset();
+        // 清空棋盘
+        cells <= '{default: '{ default: '{NPC, TERRITORY, 9'd0}}};
+        // 准备开始载入初始棋盘
+        init_board_address <= random_board << 5;  // 每张地图占 32 word，所以第 random_timer 的起始地址是 32 * random_timer
+        read_word_cnt      <= 0;
+        state <= LOAD_INIT_BOARD;
+        // [TEST BEGIN] 记录随机产生的初始棋盘序号
+        chosen_random_board <= random_board;
+        // [TEST END]
     end
 endtask 
+
+
+// 从初始棋盘库中读取初始棋盘
+logic [$clog2(MAX_RANDOM_BOARD) + 5 - 1:0]  init_board_address;     // MAX_RANDOM_BOARD 张初始地图，每张 32 个word，所以 word 总数（即地址大小）是 32*MAX_RANDOM_BOARD
+byte  read_word_cnt;        // 当前已经读的 word 个数
+logic [LOG2_BORAD_WIDTH - 1: 0] init_board_h;
+logic [LOG2_BORAD_WIDTH - 1: 0] init_board_v;
+logic [1: 0]                    init_board_type;
+typedef enum logic [1: 0] {
+    NPC_MOUNTAIN = 2'b00,
+    NPC_CITY     = 2'b01,
+    RED_CROWN    = 2'b10,
+    BLUE_CROWN   = 2'b11 
+} Init_Board_Type;
+
+Random_Boards_Library #(.WORDS_CNT(32*MAX_RANDOM_BOARD)) random_boards_library (
+    .address    (init_board_address),  // 读的地址
+    .h          (init_board_h),
+    .v          (init_board_v),
+    .piece_type (init_board_type)
+);
+
+// Random_Boards random_boards (
+//     .address (init_board_address),  // 读写操作的地址
+//     .clock   (clock),               // 读写时钟
+//     .data    (0),                   // 写入的数据，选择不写入(0)，故此位无意义
+//     .wren    (0),                   // 是否写入
+//     .q       (init_board_data)      // 读出的数据
+// );
+// assign init_board_h    = init_board_data[9:6];
+// assign init_board_v    = init_board_data[5:2];
+// assign init_board_type = init_board_data[1:0];
+
+
+// 载入初始棋盘
+task automatic load_init_board();
+    // 如果初始棋盘尚未读完
+    if (read_word_cnt < 32) begin
+        // 读出 1 word 的数据，对应棋盘中的一个“特殊元素”（王城/山/NPC城市）
+        // 不处理占位符：(h, v) = (0xF, 0xF) 表示这个 word 是占位符，仅用于将该棋盘填充至 32 word，故此情况不处理
+        if (!(init_board_h == 'hF && init_board_v == 'hF)) begin
+            casez (init_board_type)
+                NPC_MOUNTAIN:
+                    cells[init_board_h][init_board_v] <= '{NPC,  MOUNTAIN, 0};
+                NPC_CITY:
+                    cells[init_board_h][init_board_v] <= '{NPC,  CITY,     0};
+                RED_CROWN:  begin 
+                    cells[init_board_h][init_board_v] <= '{RED,  CROWN,    9};
+                    crowns_pos[RED ] <= '{init_board_h, init_board_v};
+                end
+                BLUE_CROWN: begin
+                    cells[init_board_h][init_board_v] <= '{BLUE, CROWN,    9};
+                    crowns_pos[BLUE] <= '{init_board_h, init_board_v};
+                end
+                default: ;  // assert 这种情况不应出现
+            endcase
+        end
+        // 下一周期的读地址 + 1 word
+        init_board_address <= init_board_address + 1;
+        read_word_cnt      <= read_word_cnt + 1;
+    // 如果初始棋盘已经加载完毕
+    end else begin
+        // 转到 ABOUT_TO_START 状态，初始化其他游戏数据（然后将开始游戏）
+        state <= ABOUT_TO_START;
+    end
+endtask
+
+
+// 抽签器（循环计数器），用于抽签产生初始玩家
+logic random_first_player;
+Counter #(.BIT_WIDTH(1)) counter_random_first_player(
+    // input
+    .clock      (clock_random_first_player),
+    .reset      (reset),
+    // output
+    .number_o   (random_first_player)
+);
+// （初始棋盘已载入完毕）初始化游戏数据，然后开始游戏
+task automatic about_to_start();
+    // 操作队列初始化为空
+    operation      <= NONE;
+    // 随机产生先手玩家
+    if (random_first_player == 0)
+        current_player <= RED;
+    else 
+        current_player <= BLUE;
+    // 初始坐标在先手玩家的王城
+    if (random_first_player == 0) 
+        cursor <= crowns_pos[RED];
+    else 
+        cursor <= crowns_pos[BLUE];
+
+    cursor_type    <= CHOOSE;
+    winner         <= NPC;     // 胜者，该值仅当 state == GAME_OVER 时有效
+    step_cnt       <= 'd0;
+    // 开始游戏
+    state <= IN_ROUND;
+    // 重启计时器
+    step_timer_reset();
+endtask
 
 //// [游戏逻辑部分 END]
 
@@ -461,6 +561,7 @@ endtask
 //// [游戏显示部分 BEGIN]
 logic [15:0] address;//ram地址
 logic [15:0] numaddress;
+logic [15:0] winneraddress;
 logic [31:0] bluecity_ramdata;
 logic [31:0] bluecrown_ramdata;
 logic [31:0] redcity_ramdata;
@@ -479,12 +580,25 @@ logic [31:0] number6_ramdata;
 logic [31:0] number7_ramdata;
 logic [31:0] number8_ramdata;
 logic [31:0] number9_ramdata;
-logic [31:0] white_ramdata;
+logic [31:0] bignumber0_ramdata;
+logic [31:0] bignumber1_ramdata;
+logic [31:0] bignumber2_ramdata;
+logic [31:0] bignumber3_ramdata;
+logic [31:0] bignumber4_ramdata;
+logic [31:0] bignumber5_ramdata;
+logic [31:0] bignumber6_ramdata;
+logic [31:0] bignumber7_ramdata;
+logic [31:0] bignumber8_ramdata;
+logic [31:0] bignumber9_ramdata;
+logic [31:0] percent_ramdata;
+logic [31:0] winner_ramdata;
 logic [31:0] numberdata;
+logic [31:0] bignumberdata;
 logic [31:0] ramdata;//选择后的用作输出的ram数据
 logic [31:0] indata = 32'b0;//用于为ram输入赋值（没用）
 logic [VGA_WIDTH - 1: 0] vdata_to_ram = 0;//取模后的v
 logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;//取模后的h
+logic [VGA_WIDTH - 1: 0] winner_hdata_to_ram = 0;//取模后的h
 logic [LOG2_BORAD_WIDTH - 1:0] cur_v;//从像素坐标转换到数组v坐标
 logic [LOG2_BORAD_WIDTH - 1:0] cur_h;//从像素坐标转换到数组h坐标
 logic is_gen;
@@ -494,27 +608,77 @@ logic [8:0] cur_troop;
 logic [3:0] cur_hundreds;
 logic [3:0] cur_tens;
 logic [3:0] cur_ones;
+logic [3:0] big_hundreds;
+logic [3:0] big_tens;
+logic [3:0] big_ones;
+logic [8:0] bignumber;
 assign cur_owner = cells[cur_h][cur_v].owner;
 assign cur_piecetype = cells[cur_h][cur_v].piece_type;
 assign cur_troop = cells[cur_h][cur_v].troop;
 int cursor_array [0:9] = '{'d40, 'd80, 'd120, 'd160, 'd200, 'd240, 'd280, 'd320, 'd360, 'd400};
 assign address = vdata_to_ram*40 + hdata_to_ram;
+assign winneraddress = vdata_to_ram*120 + winner_hdata_to_ram;
+assign bignumber = (vdata>100) ? step_timer:round;
 
 always_comb begin
     if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
     &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
-    // // if((hdata ==50*(cursor.h+1)+1 || hdata == 50*(cursor.h+1)+49 || vdata == 50*(cursor.v+1)+1 || vdata==50*(cursor.v+1)+49)
-    // // &&(vdata<=50*(cursor.v+1)+49 && vdata>=50*(cursor.v+1)+1 && hdata<=50*(cursor.h+1)+49 && hdata>=50*(cursor.h+1)+1)) begin  
-    // // if((hdata == 51 || hdata == 99 || vdata == 51 || vdata==99)
-    // // &&(vdata<=99 && vdata>=51 && hdata<=99 && hdata>=51)) begin 
         gen_red = 0;
         gen_green = 255;
         gen_blue = 0;
     end else 
+    if ((cursor_type == MOVE_TOTAL || cursor_type == MOVE_HALF)
+    && (((hdata == cursor_array[cursor.h]+2 || hdata == cursor_array[cursor.h]+38 || vdata == cursor_array[cursor.v]+2 || vdata==cursor_array[cursor.v]+38)
+    &&(vdata<=cursor_array[cursor.v]+38 && vdata>=cursor_array[cursor.v]+2 && hdata<=cursor_array[cursor.h]+38 && hdata>=cursor_array[cursor.h]+2))
+    || ((hdata == cursor_array[cursor.h]+3 || hdata == cursor_array[cursor.h]+37 || vdata == cursor_array[cursor.v]+3 || vdata==cursor_array[cursor.v]+37)
+    &&(vdata<=cursor_array[cursor.v]+37 && vdata>=cursor_array[cursor.v]+3 && hdata<=cursor_array[cursor.h]+37 && hdata>=cursor_array[cursor.h]+3)))) begin
+        gen_red = 0;
+        gen_green = 255;
+        gen_blue = 0;
+    end else
     if (vdata<=440&&vdata>=40&&hdata<=440&&hdata>=40) begin
         gen_red = ramdata[7:0];
         gen_green = ramdata[15:8];
         gen_blue = ramdata[23:16];
+    end else 
+    if (((vdata <= 80 && vdata > 40) ||(vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0) begin
+        if (step_timer <= 5 && (vdata <= 160 && vdata > 120)) begin 
+            gen_red = 255;
+            gen_green = 0;
+            gen_blue = 0;
+        end
+        else begin        
+            gen_red = bignumberdata[7:0];
+            gen_green = bignumberdata[15:8];
+            gen_blue = bignumberdata[23:16];
+        end
+    end else 
+    if ((vdata <= 240 && vdata > 200) && hdata >= 480 && hdata <= 600 && winner_ramdata[31:24]>=128) begin
+        gen_red = winner_ramdata[7:0];
+        gen_green = winner_ramdata[15:8];
+        gen_blue = winner_ramdata[23:16];
+    end else
+    if ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) begin
+        if (current_player == RED) begin
+            gen_red = red_ramdata[7:0];
+            gen_green = red_ramdata[15:8];
+            gen_blue = red_ramdata[23:16];
+        end else begin
+            gen_red = blue_ramdata[7:0];
+            gen_green = blue_ramdata[15:8];
+            gen_blue = blue_ramdata[23:16]; 
+        end     
+    end else
+    if ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 && winner!=NPC) begin
+        if (winner == RED) begin
+            gen_red = red_ramdata[7:0];
+            gen_green = red_ramdata[15:8];
+            gen_blue = red_ramdata[23:16];
+        end else begin
+            gen_red = blue_ramdata[7:0];
+            gen_green = blue_ramdata[15:8];
+            gen_blue = blue_ramdata[23:16]; 
+        end     
     end else begin
         gen_red = 0;
         gen_green = 0;
@@ -581,9 +745,25 @@ always_comb begin
     end else if (hdata>=400 && hdata<440) begin
         hdata_to_ram = hdata - 400;
         cur_h = 9;
+    end else if (hdata>=480 && hdata<520) begin
+        hdata_to_ram = hdata - 480;
+        cur_h = 0;
+    end else if (hdata>=520 && hdata<560) begin
+        hdata_to_ram = hdata - 520;
+        cur_h = 0;
+    end else if (hdata>=560 && hdata<600) begin
+        hdata_to_ram = hdata - 560;
+        cur_h = 0;
     end else begin
         hdata_to_ram = 0;
         cur_h = 0;
+    end
+end
+always_comb begin
+    if (hdata>=480 && hdata<=600) begin
+        winner_hdata_to_ram = hdata - 480;
+    end else begin
+        winner_hdata_to_ram = 0;
     end
 end
 always_comb begin
@@ -698,32 +878,89 @@ always_comb begin
     end
 end
 always_comb begin
-    // if (cur_owner == NPC && cur_piecetype == TERRITORY) begin
-    //     is_gen = 1;
-    //     ramdata = 0;
-    // end else if (cur_owner== NPC && cur_piecetype == MOUNTAIN) begin
-    //     is_gen = 1;
-    //     ramdata = mountain_ramdata;
-    // end else if (cur_owner == NPC && cells[cur_h][cur_v].piece_type == CITY) begin
-    //     is_gen = 1;
-    //     ramdata = neutralcity_ramdata;
-    // end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CITY) begin
-    //     is_gen = 1;
-    //     ramdata = redcity_ramdata;
-    // end else if (cells[cur_h][cur_v].owner == RED && cells[cur_h][cur_v].piece_type == CROWN) begin
-    //     is_gen = 1;
-    //     ramdata = redcrown_ramdata;
-    // end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CITY) begin
-    //     is_gen = 1;
-    //     ramdata = bluecity_ramdata;
-    // end else if (cells[cur_h][cur_v].owner == BLUE && cells[cur_h][cur_v].piece_type == CROWN) begin
-    //     is_gen = 1;
-    //     ramdata = bluecrown_ramdata;
-    // end else begin
-    //     is_gen = 1;
-    //     ramdata = 0;
-    // // end
-    if (cur_troop!=0 && numberdata[31:24] == 255) begin
+    if (hdata<=520 && hdata>=480) begin
+        if (big_hundreds == 0) begin
+            bignumberdata = bignumber0_ramdata;
+        end else if (big_hundreds == 1) begin
+            bignumberdata = bignumber1_ramdata;
+        end else if (big_hundreds == 2) begin
+            bignumberdata = bignumber2_ramdata;
+        end else if (big_hundreds == 3) begin
+            bignumberdata = bignumber3_ramdata;
+        end else if (big_hundreds == 4) begin
+            bignumberdata = bignumber4_ramdata;
+        end else if (big_hundreds == 5) begin
+            bignumberdata = bignumber5_ramdata;
+        end else if (big_hundreds == 6) begin
+            bignumberdata = bignumber6_ramdata;
+        end else if (big_hundreds == 7) begin
+            bignumberdata = bignumber7_ramdata;
+        end else if (big_hundreds == 8) begin
+            bignumberdata = bignumber8_ramdata;
+        end else begin
+            bignumberdata = bignumber9_ramdata;
+        end
+    end
+    else if (hdata >= 560 && hdata <= 600) begin
+        if (big_ones == 0) begin
+            bignumberdata = bignumber0_ramdata;
+        end else if (big_ones == 1) begin
+            bignumberdata = bignumber1_ramdata;
+        end else if (big_ones == 2) begin
+            bignumberdata = bignumber2_ramdata;
+        end else if (big_ones == 3) begin
+            bignumberdata = bignumber3_ramdata;
+        end else if (big_ones == 4) begin
+            bignumberdata = bignumber4_ramdata;
+        end else if (big_ones == 5) begin
+            bignumberdata = bignumber5_ramdata;
+        end else if (big_ones == 6) begin
+            bignumberdata = bignumber6_ramdata;
+        end else if (big_ones == 7) begin
+            bignumberdata = bignumber7_ramdata;
+        end else if (big_ones == 8) begin
+            bignumberdata = bignumber8_ramdata;
+        end else begin
+            bignumberdata = bignumber9_ramdata;
+        end            
+    end
+    else begin
+        if (big_tens == 0) begin
+            bignumberdata = bignumber0_ramdata;
+        end else if (big_tens == 1) begin
+            bignumberdata = bignumber1_ramdata;
+        end else if (big_tens == 2) begin
+            bignumberdata = bignumber2_ramdata;
+        end else if (big_tens == 3) begin
+            bignumberdata = bignumber3_ramdata;
+        end else if (big_tens == 4) begin
+            bignumberdata = bignumber4_ramdata;
+        end else if (big_tens == 5) begin
+            bignumberdata = bignumber5_ramdata;
+        end else if (big_tens == 6) begin
+            bignumberdata = bignumber6_ramdata;
+        end else if (big_tens == 7) begin
+            bignumberdata = bignumber7_ramdata;
+        end else if (big_tens == 8) begin
+            bignumberdata = bignumber8_ramdata;
+        end else begin
+            bignumberdata = bignumber9_ramdata;
+        end
+    end
+end
+always_comb begin
+    if ((((vdata <= 80 && vdata > 40) ||(vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0)
+    || ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) 
+    || ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 )
+    || ((vdata <= 240 && vdata > 200)&& hdata >= 480 && hdata <= 600 )) begin
+        is_gen = 1;
+        ramdata = 0;
+    end else
+    if (cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v && percent_ramdata[31:24] >= 128) begin
+        is_gen = 1;
+        ramdata = percent_ramdata;
+    end else
+    if (cur_troop!=0 && numberdata[31:24] >=128 && !(cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v)) begin
         is_gen = 1;
         ramdata = numberdata;
     end else 
@@ -765,8 +1002,8 @@ always_comb begin
         ramdata = 0;
     end
     // is_gen = 1;
-    // ramdata = redcity_ramdata;
-    // is_gen = 0;
+    // ramdata = bignumberdata;
+    // is_gen = 1;
     // ramdata = 0;
 end
 
@@ -784,6 +1021,14 @@ Number_Transfer  #(
     .hundreds(cur_hundreds),
     .tens(cur_tens),
     .ones(cur_ones) 
+);
+Number_Transfer  #(
+    .BIT(LOG2_MAX_TROOP)
+) number_transfer_round(
+    .number(bignumber),
+    .hundreds(big_hundreds),
+    .tens(big_tens),
+    .ones(big_ones) 
 );
 ram_number0 ram_number0_test (
     .address(numaddress),
@@ -855,6 +1100,76 @@ ram_number9 ram_number9_test (
     .wren(0),
     .q(number9_ramdata)  
 );  
+ram_bignumber0 ram_bignumber0_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber0_ramdata)
+);
+ram_bignumber1 ram_bignumber1_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber1_ramdata)
+);
+ram_bignumber2 ram_bignumber2_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber2_ramdata)
+);
+ram_bignumber3 ram_bignumber3_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber3_ramdata)
+);
+ram_bignumber4 ram_bignumber4_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber4_ramdata)
+);
+ram_bignumber5 ram_bignumber5_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber5_ramdata)
+);
+ram_bignumber6 ram_bignumber6_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber6_ramdata)
+);
+ram_bignumber7 ram_bignumber7_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber7_ramdata)
+);
+ram_bignumber8 ram_bignumber8_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber8_ramdata)
+);
+ram_bignumber9 ram_bignumber9_test(
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(bignumber9_ramdata)
+);
 ram_blue ram_blue_test (
     .address(address),
     .clock(clock),
@@ -910,6 +1225,20 @@ ram_mountain ram_mountain_test (
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)
+);
+ram_50percent ram_50percent_test (
+    .address(address),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(percent_ramdata)
+);
+ram_winner ram_winner_test (
+    .address(winneraddress),
+    .clock(clock),
+    .data(indata),
+    .wren(0),
+    .q(winner_ramdata)
 );
 always_comb begin
     if (hdata == 40 || hdata==80 || hdata==120 || hdata == 160|| hdata == 200 
