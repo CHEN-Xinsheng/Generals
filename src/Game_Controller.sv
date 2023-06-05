@@ -351,7 +351,7 @@ task automatic check_win();
         winner <= RED;
         state  <= GAME_OVER;
     // 否则，如果已经达到回合上限，游戏结束，并根据王城兵力决定胜负
-    end else if (step_cnt[0] == 1 && round == 10) begin
+    end else if (step_cnt[0] == 1 && round == MAX_ROUND) begin
         if          (cells[crowns_pos[RED ].h][crowns_pos[RED ].v].troop > cells[crowns_pos[BLUE].h][crowns_pos[BLUE].v].troop) begin
             winner <= RED;
             state  <= GAME_OVER;
