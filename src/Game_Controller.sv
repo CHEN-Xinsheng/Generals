@@ -582,7 +582,6 @@ logic [VGA_WIDTH - 1: 0] hdata_to_ram = 0;//取模后的h
 logic [VGA_WIDTH - 1: 0] winner_hdata_to_ram = 0;//取模后的h
 logic [LOG2_BORAD_WIDTH - 1:0] cur_v;//从像素坐标转换到数组v坐标
 logic [LOG2_BORAD_WIDTH - 1:0] cur_h;//从像素坐标转换到数组h坐标
-logic is_gen;//是否使用Game_C
 logic [7:0] cur_owner;//当前格归属
 logic [7:0] cur_piecetype;//当前格种类
 logic [8:0] cur_troop;//当前格兵力
@@ -713,69 +712,7 @@ always_comb begin
     end
 end
 
-//是否使用gen_rgb判断
-always_comb begin
-    //右侧信息栏
-    if ((((vdata <= 80 && vdata > 40) ||(vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0)
-        || ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) 
-        || ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 )
-        || ((vdata <= 240 && vdata > 200)&& hdata >= 480 && hdata <= 600 )) begin
-        is_gen = 1;
-        ramdata = 0;
-    end else
-    //以下全部为棋子显示
-    //50%模式
-    if (cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v && percent_ramdata[31:24] >= 128) begin
-        is_gen = 1;
-        ramdata = percent_ramdata;
-    end else
-    //兵力
-    if (cur_troop!=0 && numberdata[31:24] >=128 && !(cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v)) begin
-        is_gen = 1;
-        ramdata = numberdata;
-    end else 
-    //中立
-    if (cur_owner == NPC) begin
-        if (cur_piecetype == CITY) begin
-            is_gen = 1;
-            ramdata = neutralcity_ramdata;
-        end else if (cur_piecetype == MOUNTAIN) begin 
-            is_gen = 1;
-            ramdata = mountain_ramdata;
-        end else begin
-            is_gen = 0;
-            ramdata = 0;
-        end
-    //红方
-    end else if (cur_owner == RED) begin
-        if (cur_piecetype == CROWN) begin
-            is_gen = 1;
-            ramdata = redcrown_ramdata;
-        end else if (cur_piecetype == CITY) begin
-            is_gen = 1;
-            ramdata = redcity_ramdata;
-        end else begin
-            is_gen = 1;
-            ramdata = red_ramdata;
-        end
-    //蓝方
-    end else if (cur_owner == BLUE) begin
-        if (cur_piecetype == CROWN) begin
-            is_gen = 1;
-            ramdata = bluecrown_ramdata;
-        end else if (cur_piecetype == CITY) begin
-            is_gen = 1;
-            ramdata = bluecity_ramdata;
-        end else begin
-            is_gen = 1;
-            ramdata = blue_ramdata;
-        end
-    //默认情况
-    end else begin
-        is_gen = 0;
-        ramdata = 0;
-    end
-end
+
 //数字转换，将三位数字转换为百位十位个位
 Number_Transfer  #(
     .BIT(LOG2_MAX_TROOP)
@@ -802,16 +739,68 @@ always_comb begin
        || vdata == 40 || vdata == 80 || vdata == 120 || vdata == 160 || vdata == 200 
        || vdata == 240 || vdata == 280 || vdata == 320 || vdata == 360 || vdata == 400 || vdata == 440) begin
         use_gen = 0;
+        ramdata = 0;
     //光标位置 
     end else if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
-    &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
+            &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
         use_gen = 1;
-    //is_gen情况
-    end else if (is_gen) begin
+        ramdata = 0;
+    //右侧信息栏
+    end else if ((((vdata <= 80 && vdata > 40) || (vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0)
+        || ((vdata <= 120 && vdata > 80) && hdata >= 520 && hdata <= 560 ) 
+        || ((vdata <= 280 && vdata > 240) && hdata >= 520 && hdata <= 560 )
+        || ((vdata <= 240 && vdata > 200) && hdata >= 480 && hdata <= 600 )) begin
         use_gen = 1;
+        ramdata = 0;
+    //以下全部为棋子显示
+    //50%模式
+    end else if (cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v && percent_ramdata[31:24] >= 128) begin
+        use_gen = 1;
+        ramdata = percent_ramdata;
+    //兵力
+    end else if (cur_troop!=0 && numberdata[31:24] >=128 && !(cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v)) begin
+        use_gen = 1;
+        ramdata = numberdata;
+    //中立
+    end else if (cur_owner == NPC) begin
+        if (cur_piecetype == CITY) begin
+            use_gen = 1;
+            ramdata = neutralcity_ramdata;
+        end else if (cur_piecetype == MOUNTAIN) begin 
+            use_gen = 1;
+            ramdata = mountain_ramdata;
+        end else begin
+            use_gen = 0;
+            ramdata = 0;
+        end
+    //红方
+    end else if (cur_owner == RED) begin
+        if (cur_piecetype == CROWN) begin
+            use_gen = 1;
+            ramdata = redcrown_ramdata;
+        end else if (cur_piecetype == CITY) begin
+            use_gen = 1;
+            ramdata = redcity_ramdata;
+        end else begin
+            use_gen = 1;
+            ramdata = red_ramdata;
+        end
+    //蓝方
+    end else if (cur_owner == BLUE) begin
+        if (cur_piecetype == CROWN) begin
+            use_gen = 1;
+            ramdata = bluecrown_ramdata;
+        end else if (cur_piecetype == CITY) begin
+            use_gen = 1;
+            ramdata = bluecity_ramdata;
+        end else begin
+            use_gen = 1;
+            ramdata = blue_ramdata;
+        end
     //默认情况
     end else begin
         use_gen = 0;
+        ramdata = 0;
     end
 end
 //以下为ram读取
