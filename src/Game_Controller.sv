@@ -599,7 +599,8 @@ int cursor_array [0:9] = '{'d40, 'd80, 'd120, 'd160, 'd200, 'd240, 'd280, 'd320,
 assign address = vdata_to_ram*40 + hdata_to_ram;
 assign winneraddress = vdata_to_ram*120 + winner_hdata_to_ram;
 assign bignumber = (vdata>100) ? step_timer:round;
-//主逻辑，用于生成gen_rgb
+
+// 主逻辑，用于生成gen_rgb（即游戏逻辑模块生成的图像）
 always_comb begin
     //光标模式绿色边框
     if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
@@ -681,7 +682,7 @@ always_comb begin
         gen_blue = 0;
     end
 end
-//数字选择
+// 数字选择
 Number_Choose#(
     .VGA_WIDTH(VGA_WIDTH),
     .LOG2_BORAD_WIDTH(LOG2_BORAD_WIDTH)
@@ -703,7 +704,7 @@ Number_Choose#(
     .numberdata(numberdata)
 );
 
-//胜者显示
+// 胜者显示
 always_comb begin
     if (hdata>=480 && hdata<=600) begin
         winner_hdata_to_ram = hdata - 480;
@@ -713,7 +714,7 @@ always_comb begin
 end
 
 
-//数字转换，将三位数字转换为百位十位个位
+// 数字转换，将三位数字转换为百位十位个位
 Number_Transfer  #(
     .BIT(LOG2_MAX_TROOP)
 ) number_transfer_troop(
@@ -731,7 +732,7 @@ Number_Transfer  #(
     .ones(big_ones) 
 );
 
-//use_gen传递，判断使用默认格还是gen_rgb
+// use_gen传递，用于给下游的 Screen_Controller 判断使用背景图像（默认格）还是gen_rgb（本游戏模块产生的图像）
 always_comb begin
     //各自边框
     if (hdata == 40 || hdata==80 || hdata==120 || hdata == 160|| hdata == 200 
@@ -804,77 +805,77 @@ always_comb begin
     end
 end
 //以下为ram读取
-ram_blue ram_blue (
+ram_blue ram_blue ( // 蓝色块（代表蓝方玩家），用于显示当前玩家和胜者
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(blue_ramdata)  
 );
-ram_bluecity ram_bluecity (
+ram_bluecity ram_bluecity ( // 蓝方城市
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(bluecity_ramdata)  
 );
-ram_bluecrown ram_bluecrown (
+ram_bluecrown ram_bluecrown ( // 蓝方王城
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(bluecrown_ramdata)
 );
-ram_red ram_red (
+ram_red ram_red ( // 红色块（代表红方玩家），用于显示当前玩家和胜者
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(red_ramdata)  
 );
-ram_redcity ram_redcity (
+ram_redcity ram_redcity ( // 红方城市
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(redcity_ramdata)
 );
-ram_redcrown ram_redcrown (
+ram_redcrown ram_redcrown ( // 红方王城
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(redcrown_ramdata)
 );
-ram_neutralcity ram_neutralcity (
+ram_neutralcity ram_neutralcity ( // NPC 城市
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(neutralcity_ramdata)
 );
-ram_mountain ram_mountain (
+ram_mountain ram_mountain ( // NPC 山（即障碍物）
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(mountain_ramdata)
 );
-ram_50percent ram_50percent (
+ram_50percent ram_50percent ( // 显示当前行棋模式为派出 50% 兵力的图片
     .address(address),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(percent_ramdata)
 );
-ram_winner ram_winner (
+ram_winner ram_winner ( // 显示胜利的图片
     .address(winneraddress),
     .clock(clock),
     .data(indata),
     .wren(0),
     .q(winner_ramdata)
 );
-ram_draw ram_draw (
+ram_draw ram_draw (  // 显示平局的图片
     .address(winneraddress),
     .clock(clock),
     .data(indata),
