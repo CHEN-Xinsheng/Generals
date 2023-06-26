@@ -604,43 +604,38 @@ assign bignumber = (vdata>100) ? step_timer:round;
 always_comb begin
     //光标模式绿色边框
     if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
-    &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
+        &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
         gen_red = 0;
         gen_green = 255;
         gen_blue = 0;
-    end else
     //选中模式厚绿色边框 
-    if ((cursor_type == MOVE_TOTAL || cursor_type == MOVE_HALF)
-    && (((hdata == cursor_array[cursor.h]+2 || hdata == cursor_array[cursor.h]+38 || vdata == cursor_array[cursor.v]+2 || vdata==cursor_array[cursor.v]+38)
-    &&(vdata<=cursor_array[cursor.v]+38 && vdata>=cursor_array[cursor.v]+2 && hdata<=cursor_array[cursor.h]+38 && hdata>=cursor_array[cursor.h]+2))
-    || ((hdata == cursor_array[cursor.h]+3 || hdata == cursor_array[cursor.h]+37 || vdata == cursor_array[cursor.v]+3 || vdata==cursor_array[cursor.v]+37)
-    &&(vdata<=cursor_array[cursor.v]+37 && vdata>=cursor_array[cursor.v]+3 && hdata<=cursor_array[cursor.h]+37 && hdata>=cursor_array[cursor.h]+3)))) begin
+    end else if ((cursor_type == MOVE_TOTAL || cursor_type == MOVE_HALF)
+        && (( (hdata == cursor_array[cursor.h]+2 || hdata == cursor_array[cursor.h]+38 || vdata == cursor_array[cursor.v]+2 || vdata==cursor_array[cursor.v]+38)
+                &&(vdata<=cursor_array[cursor.v]+38 && vdata>=cursor_array[cursor.v]+2 && hdata<=cursor_array[cursor.h]+38 && hdata>=cursor_array[cursor.h]+2))
+           || ((hdata == cursor_array[cursor.h]+3 || hdata == cursor_array[cursor.h]+37 || vdata == cursor_array[cursor.v]+3 || vdata==cursor_array[cursor.v]+37)
+                &&(vdata<=cursor_array[cursor.v]+37 && vdata>=cursor_array[cursor.v]+3 && hdata<=cursor_array[cursor.h]+37 && hdata>=cursor_array[cursor.h]+3)))) begin
         gen_red = 0;
         gen_green = 255;
         gen_blue = 0;
-    end else
     //棋子内容
-    if (vdata<=440&&vdata>=40&&hdata<=440&&hdata>=40) begin
+    end else if (vdata <= 440 && vdata >= 40 && hdata <= 440 && hdata >= 40) begin
         gen_red = ramdata[7:0];
         gen_green = ramdata[15:8];
         gen_blue = ramdata[23:16];
-    end else 
     //回合与计时
-    if (((vdata <= 80 && vdata > 40) ||(vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0) begin
+    end else if (((vdata <= 80 && vdata > 40) || (vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0) begin
         //时间<=5s，变成红色
         if (step_timer <= 5 && (vdata <= 160 && vdata > 120)) begin 
             gen_red = 255;
             gen_green = 0;
             gen_blue = 0;
-        end
-        else begin        
+        end else begin        
             gen_red = bignumberdata[7:0];
             gen_green = bignumberdata[15:8];
             gen_blue = bignumberdata[23:16];
         end
-    end else
     //胜者图标 
-    if ((vdata <= 240 && vdata > 200) && hdata >= 480 && hdata <= 600 && state == GAME_OVER) begin
+    end else if ((vdata <= 240 && vdata > 200) && hdata >= 480 && hdata <= 600 && state == GAME_OVER) begin
         if (winner != NPC && winner_ramdata[31:24]>=128) begin
             gen_red = winner_ramdata[7:0];
             gen_green = winner_ramdata[15:8];
@@ -654,9 +649,8 @@ always_comb begin
             gen_green = 0;
             gen_blue = 0; 
         end
-    end else
     //当前玩家图标
-    if ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) begin
+    end else if ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) begin
         if (current_player == RED) begin
             gen_red = red_ramdata[7:0];
             gen_green = red_ramdata[15:8];
@@ -666,9 +660,8 @@ always_comb begin
             gen_green = blue_ramdata[15:8];
             gen_blue = blue_ramdata[23:16]; 
         end     
-    end else
     //胜利或平局文字
-    if ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 && state == GAME_OVER) begin
+    end else if ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 && state == GAME_OVER) begin
         if (winner == RED) begin
             gen_red = red_ramdata[7:0];
             gen_green = red_ramdata[15:8];
@@ -724,9 +717,9 @@ end
 always_comb begin
     //右侧信息栏
     if ((((vdata <= 80 && vdata > 40) ||(vdata <= 160 && vdata > 120)) && hdata >= 480 && hdata <= 600 && bignumberdata[31:24]!=0)
-    || ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) 
-    || ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 )
-    || ((vdata <= 240 && vdata > 200)&& hdata >= 480 && hdata <= 600 )) begin
+        || ((vdata <= 120 && vdata > 80)&& hdata >= 520 && hdata <= 560 ) 
+        || ((vdata <= 280 && vdata > 240)&& hdata >= 520 && hdata <= 560 )
+        || ((vdata <= 240 && vdata > 200)&& hdata >= 480 && hdata <= 600 )) begin
         is_gen = 1;
         ramdata = 0;
     end else
@@ -786,7 +779,7 @@ end
 //数字转换，将三位数字转换为百位十位个位
 Number_Transfer  #(
     .BIT(LOG2_MAX_TROOP)
-) number_transfer(
+) number_transfer_troop(
     .number(cur_troop),
     .hundreds(cur_hundreds),
     .tens(cur_tens),
@@ -800,8 +793,28 @@ Number_Transfer  #(
     .tens(big_tens),
     .ones(big_ones) 
 );
-//以下为ram读取
 
+//use_gen传递，判断使用默认格还是gen_rgb
+always_comb begin
+    //各自边框
+    if (hdata == 40 || hdata==80 || hdata==120 || hdata == 160|| hdata == 200 
+       || hdata == 240 || hdata == 280 || hdata == 320 || hdata == 360 || hdata == 400 || hdata == 440 
+       || vdata == 40 || vdata == 80 || vdata == 120 || vdata == 160 || vdata == 200 
+       || vdata == 240 || vdata == 280 || vdata == 320 || vdata == 360 || vdata == 400 || vdata == 440) begin
+        use_gen = 0;
+    //光标位置 
+    end else if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
+    &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
+        use_gen = 1;
+    //is_gen情况
+    end else if (is_gen) begin
+        use_gen = 1;
+    //默认情况
+    end else begin
+        use_gen = 0;
+    end
+end
+//以下为ram读取
 ram_blue ram_blue (
     .address(address),
     .clock(clock),
@@ -879,29 +892,7 @@ ram_draw ram_draw (
     .wren(0),
     .q(draw_ramdata)
 );
-//use_gen传递，判断使用默认格还是gen_rgb
-always_comb begin
-    //各自边框
-    if (hdata == 40 || hdata==80 || hdata==120 || hdata == 160|| hdata == 200 
-       || hdata == 240 || hdata == 280 || hdata == 320 || hdata == 360 || hdata == 400 || hdata == 440 
-       || vdata == 40 || vdata == 80 || vdata == 120 || vdata == 160 || vdata == 200 
-       || vdata == 240 || vdata == 280 || vdata == 320 || vdata == 360 || vdata == 400 || vdata == 440) begin
-        use_gen = 0;
-    end
-    //光标位置 
-    else if((hdata == cursor_array[cursor.h]+1 || hdata == cursor_array[cursor.h]+39 || vdata == cursor_array[cursor.v]+1 || vdata==cursor_array[cursor.v]+39)
-    &&(vdata<=cursor_array[cursor.v]+39 && vdata>=cursor_array[cursor.v]+1 && hdata<=cursor_array[cursor.h]+39 && hdata>=cursor_array[cursor.h]+1)) begin
-        use_gen = 1;
-    end
-    //is_gen情况
-    else if (is_gen) begin
-        use_gen = 1;
-    end 
-    //默认情况
-    else begin
-        use_gen = 0;
-    end
-end
+
 //// [游戏显示部分 END]
 
 endmodule
