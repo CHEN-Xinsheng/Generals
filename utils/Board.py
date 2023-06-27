@@ -2,8 +2,8 @@
     棋盘信息的数据结构。
 """
 
-import json
-from pprint import pprint
+# import json
+# from pprint import pprint
 from enum import Enum
 
 
