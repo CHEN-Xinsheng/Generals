@@ -732,7 +732,7 @@ Number_Transfer  #(
     .ones(big_ones) 
 );
 
-// use_gen传递，用于给下游的 Screen_Controller 判断使用背景图像（默认格）还是gen_rgb（本游戏模块产生的图像）
+// use_gen传递，用于给下游的 Screen_Controller 判断使用背景图像（空白格）还是gen_rgb（本游戏模块产生的图像）
 always_comb begin
     //各自边框
     if (hdata == 40 || hdata==80 || hdata==120 || hdata == 160|| hdata == 200 
@@ -762,7 +762,7 @@ always_comb begin
     end else if (cur_troop!=0 && numberdata[31:24] >=128 && !(cursor_type == MOVE_HALF && cur_h == cursor.h && cur_v == cursor.v)) begin
         use_gen = 1;
         ramdata = numberdata;
-    //中立
+    //归属方为NPC
     end else if (cur_owner == NPC) begin
         if (cur_piecetype == CITY) begin
             use_gen = 1;
@@ -774,7 +774,7 @@ always_comb begin
             use_gen = 0;
             ramdata = 0;
         end
-    //红方
+    //归属方为红方
     end else if (cur_owner == RED) begin
         if (cur_piecetype == CROWN) begin
             use_gen = 1;
@@ -786,7 +786,7 @@ always_comb begin
             use_gen = 1;
             ramdata = red_ramdata;
         end
-    //蓝方
+    //归属方为蓝方
     end else if (cur_owner == BLUE) begin
         if (cur_piecetype == CROWN) begin
             use_gen = 1;
