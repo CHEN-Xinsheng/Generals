@@ -1,3 +1,4 @@
+// 用于显示数码
 module Number_Choose
 #(parameter VGA_WIDTH            = 0,
 			LOG2_BORAD_WIDTH     = 4)

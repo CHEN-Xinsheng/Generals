@@ -104,7 +104,6 @@ set_global_assignment -name QIP_FILE ip/ram_piece/ram_number9.qip
 set_global_assignment -name SYSTEMVERILOG_FILE src/Number_Transfer.sv
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_blue.qip
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_red.qip
-set_global_assignment -name SYSTEMVERILOG_FILE src/Coordinate_Transfer.sv
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_bignumber0.qip
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_bignumber1.qip
 set_global_assignment -name QIP_FILE ip/ram_piece/ram_bignumber2.qip
