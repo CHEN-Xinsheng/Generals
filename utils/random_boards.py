@@ -1,6 +1,7 @@
 import random
 import datetime
 import argparse
+import os
 from pathlib import Path
 from typing import List
 from tqdm import tqdm
@@ -307,16 +308,22 @@ if __name__ == "__main__":
         boards.append(board)
 
         # 保存日志
+        if not os.path.exists(Path('log')):
+            os.makedirs(Path('log'))
         with open(Path('log') / f'random_boards-{current_time}.txt', 'a') as f:
             f.write(f"[{id}]\n")
             f.write(str(board))
             f.write("\n")
 
+    # 创建结果保存路径
+    if not os.path.exists(Path.cwd() / 'result'):
+        os.makedirs(Path.cwd() / 'result')
+    
     # convert_to_mif(boards, args.mif_file_path)
-    # convert_to_sv_localparam(boards, args.sv_file_path)
+    convert_to_sv_localparam(boards, args.sv_file_path)
     # convert_to_sv_const(boards, args.sv_file_path)
     # convert_to_sv_casez(boards, args.sv_file_path)
-    print(whole_board_to_str(Board(BOARD_WIDTH)) + ";")
+    # print(whole_board_to_str(Board(BOARD_WIDTH)) + ";")
 
 
     ## [TEST]
