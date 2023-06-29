@@ -77,7 +77,7 @@ def random_board(width, mountain_cnt, NPC_city_cnt):
         if distance(board.crowns[Player.RED ], board.crowns[Player.BLUE], 1) >= 1.2 * width:
             break
 
-    # 2. 每个王城附近 3*3 内保证至少 1 个塔
+    # 2. 每个王城附近 3*3 内保证至少 1 个 NPC 城市
     for player in [Player.RED, Player.BLUE]:
         while True:
             city = (board.crowns[player][0] + random.randrange(-1, 2), board.crowns[player][1] + random.randrange(-1, 2))
@@ -94,7 +94,7 @@ def random_board(width, mountain_cnt, NPC_city_cnt):
         if (mountain not in protected_path) and (mountain not in board.mountains):
             board.mountains.append(mountain)
 
-    # 5. 生成指定数量的 NPC 塔
+    # 5. 生成指定数量的 NPC 城市
     while len(board.NPC_cities) < NPC_city_cnt:
         city = (random.randrange(0, width), random.randrange(0, width))
         if (city not in list(board.crowns.values())) and (city not in board.mountains) and (city not in board.NPC_cities):
@@ -135,7 +135,7 @@ def convert_to_mif(boards: List[Board], mif_file_path):
             # 输出山位置
             for (h, v) in board.mountains:
                 print_a_word(addr, h, v, 0b00); addr += 1
-            # 输出 NPC 塔位置
+            # 输出 NPC 城市位置
             for (h, v) in board.NPC_cities:
                 print_a_word(addr, h, v, 0b01); addr += 1
             # 输出占位符
@@ -164,7 +164,7 @@ def convert_to_sv_localparam(boards: List[Board], sv_file_path):
             # 输出山位置
             for (h, v) in board.mountains:
                 print_a_word(h, v, 0b00)
-            # 输出 NPC 塔位置
+            # 输出 NPC 城市位置
             for (h, v) in board.NPC_cities:
                 print_a_word(h, v, 0b01)
             # 输出占位符
@@ -296,10 +296,10 @@ if __name__ == "__main__":
     boards = []
     # 生成指定数量的随机棋盘
     for id in tqdm(range(args.board_num)):
-        # 随机生成 NPC 元素（塔、山）数量
+        # 随机生成 NPC 元素（城市、山）数量
         ## 对于 10*10 的棋盘，每个棋盘不超过 32 个特殊元素（其中恰有 2 个王城），NPC 特殊元素不超过 30 个
         NPC_elements_cnt = random.randrange(0.24 * BOARD_WIDTH**2, 0.31 * BOARD_WIDTH**2)
-        ## 山和 NPC 塔的比例都在 给定区间 内
+        ## 山和 NPC 城市的比例都在 给定区间 内
         mountain_cnt = int(NPC_elements_cnt * random.uniform(0.35, 0.65))
         NPC_city_cnt = NPC_elements_cnt - mountain_cnt
 
