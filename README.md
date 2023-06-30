@@ -20,5 +20,7 @@
     - `Screen_Controller.sv` ：显示控制器
       - `Background_Painter.sv` ：用于绘制背景图像
       - `vga.v`： VGA 控制器，用于生成 VGA 行列扫描信号
-- `output_files/`
-  - `digital-design.sof` ：编译后的 bitstream 二进制文件。
+- `media/` ：项目使用的图像文件
+- `utils/` ：项目使用的辅助工具
+  - `random_boards.py` ：随机棋盘胜场脚本
+  - `README.md` ：使用方法
