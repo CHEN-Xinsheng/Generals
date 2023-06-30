@@ -262,7 +262,6 @@ Game_Controller #(
         .start                      (clock_btn),
         // .start                      (~dip_sw[0]),  // [TEST]
         .reset                      (reset_btn),
-        .clk_vga                    (clk_vga),
         // 与 Keyboard_Decoder 交互：获取键盘操作信号
         .keyboard_ready             (keyboard_ready),  // 键盘输入模块 -> 逻辑模块 的信号，1表示有新数据
         .keyboard_data              (keyboard_data),

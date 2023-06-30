@@ -35,7 +35,6 @@ module Game_Controller
     input wire                    clock_random_first_player,
     input wire                    start,              // 游戏开始
     input wire                    reset,
-    input wire                    clk_vga,
     // 与 Keyboard_Decoder 交互：获取键盘操作信号 
     input wire                    keyboard_ready,
     input wire [2: 0]             keyboard_data,
