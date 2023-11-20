@@ -1,0 +1,52 @@
+\documentclass[12pt,a4paper,oneside]{ctexart}
+
+\usepackage{amsmath,amsthm,amssymb,appendix,bm,graphicx,hyperref,mathrsfs}
+\usepackage{geometry,pifont,ctex}
+\usepackage{float}  % 图片位置设置
+\usepackage{listings} % 插入代码块
+\usepackage{color}
+
+
+\usepackage{enumitem}
+\setlist[itemize]{itemsep=1.6pt, topsep=4pt, parsep=0pt, partopsep=0pt} % itemize 行距
+
+\newtheorem{theorem}{定理}[section]
+\newtheorem{corollary}{推论}[theorem]
+\newtheorem{lemma}[theorem]{引理}
+\newtheorem{remark}{注}[theorem]
+\theoremstyle{definition}
+\newtheorem{definition}{定义}[section]
+
+\geometry{left=2.54cm,right=2.54cm,top=3.18cm,bottom=3.18cm}
+\linespread{1.5}
+
+
+
+
+% 设置标题、作者、日期
+\title{Generals 将军棋 \\   
+        \large{—— 2023年春季学期《数字逻辑设计》课程项目文档}}
+\author{
+    陈鑫圣 \quad 周晋 \\
+    \small{清华大学计算机科学与技术系} \\
+    \small{\texttt{\{cxs21,zhoujin21\}@mails.tsinghua.edu.cn}}
+}
+
+\date{\kaishu{\today}}
+
+\begin{document}
+% 标题
+\maketitle
+\newpage
+% 目录
+\tableofcontents
+\newpage
+% 各个章节
+\input{Chapters/introduction}
+\input{Chapters/usage}
+\input{Chapters/structure}
+\input{Chapters/modules}
+\input{Chapters/problems}
+\input{Chapters/summary}
+
+\end{document}

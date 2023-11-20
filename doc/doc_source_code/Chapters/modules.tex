@@ -1,0 +1,540 @@
+\section{各模块介绍}
+% 每个模块需要写出对应的 module 的名字，从而和代码对应起来。
+% 每个模块需要写其输入输出信号，以及部分关键的内部数据。
+
+\subsection{键盘解码器与操作读取器} \label{subsection:keyboard-decoder}
+
+\subsubsection{实现细节}
+项目中与键盘解码器对应的 module 为 \texttt{Keyboard\_Decoder} （在文件 \texttt{Keyboard\_Decoder.sv} 中）；与操作读取器对应的 module 为 \texttt{Game\_Controller} （在文件 \texttt{Game\_Controller.sv} 中）。
+
+键盘解码器会接收所接键盘外设的断码（即松开时键盘传递的扫描码），并判断是否为需要的WASD Z SPACE按键，再进行编码，传给游戏控制器（中的操作读取器）。
+% 编码方式如下：W A S D SPACE Z 依次编为 000 至 101。
+
+为了保证每个键松开的信号被识别且仅被识别一次，两者会互相维护两个确认信号： \texttt{ready} 和 \texttt{read\_fin}，分别表示有新数据和数据读取完成。
+
+交互过程如下：
+\begin{itemize}
+  \item 当键盘解码器从键盘读取到按键断码时，将 \texttt{ready} 信号置为 1 ，并在将数据信号设定为相应的信息。
+  \item 当游戏控制器接收的 \texttt{ready} 信号为 1 时，就读取数据，并将 \texttt{read\_fin} 信号置为 1。
+  \item 当键盘解码器接收的 \texttt{read\_fin} 为 1 时，状态机在本次时钟周期不进行状态转移，并将 \texttt{ready} 信号恢复为 0。
+  \item 当游戏控制器接收的 \texttt{ready} 信号为 0 时，就将 \texttt{read\_fin} 信号恢复为 0。至此，完成一次数据传递。
+\end{itemize}
+
+% 键盘模块读入\texttt{read\_fin}信号，在输出键盘信息的同时输出\texttt{ready}信号。\texttt{ready}信号默认为0，若\texttt{read\_fin}为0，且读入了合法的按键(即WASD Z SPACE)，则\texttt{ready}信号为1，代表传入了新按键信息，传给游戏控制器，再将\texttt{ready}信号置为0。
+
+% 主逻辑部分读入\texttt{ready}信号，并向键盘模块传入\texttt{read\_fin}信号；\texttt{read\_fin}信号默认为0，当接收到\texttt{ready}信号为1时，主逻辑开始读入传来的键盘数据，当读取完毕时，使\texttt{read\_fin}信号为1，传入键盘模块，再将\texttt{read\_fin}信号置为0。
+
+\subsubsection{模块接口} \label{subsubsection:keyboard-decoder-interface}
+下面为模块接口：
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{12}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    caption={\texttt{Background\_Painter}源代码} % 标题
+] 
+module Keyboard_Decoder (
+    // input
+    input wire          clock,
+    input wire          reset,
+    input wire          ps2_clock,   // PS/2 时钟信号
+    input wire          ps2_data,    // PS/2 数据信号
+    input wire          read_fin,    // 逻辑模块 -> 键盘输入
+    模块的信号，1表示数据已经被读取
+    // output
+    output wire         ready,       // 键盘输入模块 -> 逻辑    
+    模块的信号，1表示有新数据
+    output wire [2: 0]  data         //输出，为WASD SPACE 
+    Z编码后传入主逻辑
+);
+\end{lstlisting}
+输入：
+\begin{itemize}
+    \item \texttt{ps2\_clock}：输入时钟，为$100M \text{Hz}$
+    \item \texttt{ps2\_data}：键盘输入数据，为按下/松开键盘按键时传入的扫描码
+    \item \texttt{read\_fin}：读取完成确认，由游戏控制器传入，1表示已读取，可以传递新数据，即把\texttt{ready}置为1
+\end{itemize}
+输出：
+\begin{itemize}
+    \item \texttt{ready}：传递新数据确认，当读取完成断码，且判断为需要的按键，且游戏控制器传来的完成确认为1时，置为1，表示要传递新数据
+    \item \texttt{data}：传给游戏控制器的键盘数据，为需要的按键编码后传输，具体编码为：
+    \begin{itemize}
+        \item W：000
+        \item A：001
+        \item S：010
+        \item D：011
+        \item 空格：100
+        \item Z：101
+    \end{itemize}
+\end{itemize}
+
+
+\subsection{游戏控制器}
+由于游戏逻辑部分和操作读取器需要共同维护操作队列，并且需要向下游的游戏画面绘制部分提供游戏状态数据，所以在实现中，我们将这三个部分以及“操作队列”“游戏状态数据”封装为“游戏控制器”（参见图 \ref{fig:structure} ）。其中的操作读取器已在第 \ref{subsection:keyboard-decoder} 节介绍。
+
+工程代码中对应的 module 为 \texttt{Game\_Controller} （在文件 \texttt{Game\_Controller.sv} 中）。
+
+\subsubsection{游戏内部数据}
+
+游戏控制器内部维护的数据如下：
+\begin{itemize}
+    \item 棋盘结构体数组：一个 $10\times 10$ 的二维数组，每一项是一个结构体（见下），表示一个格子的信息。
+    \item 每个玩家王城的位置。
+    \item 操作队列。在实现中，操作队列容量为 1，即只记录最近一次未被计算的操作。在实现中用一个3 bit 的寄存器来表示，在 \ref{subsubsection:keyboard-decoder-interface} 的基础上，增加“空队列” NONE（110）
+    \item 当前玩家
+    \item 当前光标位置
+    \item 光标所处模式：光标移动模式（00 与 01），行棋模式（全移模式：10，半移模式：11）
+    \item 已经进行的行棋操作次数（包括超时）
+    \item 当前回合（从 1 开始）
+    \item 当前游戏状态
+    \item 当前回合剩余时间
+\end{itemize}
+
+每个单元格结构体定义如下：
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{10}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    % firstnumber=59,
+    caption={单元格结构体} % 标题
+] 
+// 玩家类型
+typedef enum logic [LOG2_MAX_PLAYER_CNT - 1:0]  {NPC, RED, BLUE} Player;
+// 棋子类型
+typedef enum logic [LOG2_PIECE_TYPE_CNT - 1:0]  
+    {TERRITORY,              MOUNTAIN,    CROWN,   CITY      } Piece;
+    // 普通领地（含空白格）， 山，         王城，    塔（城市）
+// 单元格结构体
+typedef struct packed {
+    Player                        owner;        // 该格子归属方
+    Piece                         piece_type;   // 该棋子类型
+    reg [LOG2_MAX_TROOP - 1: 0]   troop;        // 该格子兵力值
+} Cell;
+\end{lstlisting}
+
+\subsubsection{游戏状态机}
+在游戏逻辑部分，用一个状态机来维护游戏内部状态。各状态定义如下：
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{10}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    % firstnumber=91,
+    caption={游戏状态} % 标题
+] 
+// 游戏状态
+typedef enum logic [2:0] {
+    READY,              // 游戏准备开始
+    LOAD_INIT_BOARD,    // 载入初始棋盘
+    ABOUT_TO_START,     // 初始棋盘载入完毕，初始化游戏数据
+    IN_ROUND,           // 回合内
+    CHECK_WIN,          // 判断胜负
+    ROUND_SWITCH,       // 回合切换中
+    GAME_OVER           // 游戏结束
+} State;
+\end{lstlisting}
+
+状态机的转移图如下：
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.55]{images/states.png}
+    \caption{状态转移图}
+    \label{fig:state-transfer}
+\end{figure}
+
+各状态下，游戏控制器执行的任务以及状态转移见第 \ref{subsubsection:logic} 节。
+
+
+\subsubsection{游戏运行逻辑} \label{subsubsection:logic}
+游戏逻辑部分（以及操作读取器）的逻辑封装在一个 \texttt{always\_ff} 块中，代码如下（行号即为 \texttt{Game\_Controller.sv} 中的行号）。
+
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{10}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    firstnumber=175,
+    caption={游戏逻辑部分顶层 \texttt{always} 块} % 标题
+] 
+// 与键盘输入模块交互+游戏逻辑部分 顶层 always 块
+always_ff @ (posedge clock, posedge reset) begin
+    if (reset) begin
+        state <= READY;
+    end else begin
+        // 如果键盘输入模块有新数据，那么本周期读取数据，不运行游戏逻辑
+        if (keyboard_ready) begin
+            // 缓存一次未结算的操作
+            if (keyboard_data <= 'b101) begin
+                operation <= Operation'(keyboard_data);
+            end
+            // 并给键盘处理模块返回读取已完成的信号
+            keyboard_read_fin <= 'b1;
+        // 否则，本周期运行游戏逻辑
+        end else begin
+            keyboard_read_fin <= 'b0;
+            casez (state)
+                READY:              ready();
+                LOAD_INIT_BOARD:    load_init_board();
+                ABOUT_TO_START:     about_to_start();
+                IN_ROUND:           in_round();
+                CHECK_WIN:          check_win();
+                ROUND_SWITCH:       round_switch();
+                GAME_OVER:          ;
+                default: ; // assert 这种情况不应出现
+            endcase
+        end
+    end
+end
+\end{lstlisting}
+
+可以看出，如果键盘输入模块（键盘解码器）有新数据，那么本时钟周期读取数据，不运行游戏逻辑。
+
+否则，
+我们将每个状态下对应的需要执行的代码各封装为一个 task，各个 task 执行的任务如下：
+\begin{itemize}
+    \item \texttt{ready}：检查此时的 start 按钮是否处于按下状态。若是，重置棋盘信息，并准备开始载入初始棋盘，然后转移到 LOAD\_INIT\_BOARD 状态。
+    \item \texttt{load\_init\_board}：加载初始棋盘数据。在加载完成之前，将保持在 \texttt{LOAD\_INIT\_BOARD} 状态；加载完成之后，转到 \texttt{ABOUT\_TO\_START} 状态，初始化其他游戏数据。
+    \item \texttt{about\_to\_start}：完成开始游戏前的其它准备（操作队列初始化为空、随机产生先手玩家、将光标放置在先手玩家的王城等），然后转到 \texttt{IN\_ROUND} 状态，准备开始游戏。
+    \item \texttt{in\_round}：回合内的游戏逻辑。如果已超时，状态直接转移到  \texttt{CHECK\_WIN} ；否则，如果当前有尚未结算的操作，那么结算一次操作、将操作队列清空，然后转移到 \texttt{CHECK\_WIN}
+    \item \texttt{check\_win}：进行胜负判断。如果某方王城位置归属不再是自己，游戏结束；否则，如果已经达到回合上限，游戏结束，并根据王城兵力决定胜负；否则，游戏继续，进行回合切换。若游戏结束，转移到 \texttt{GAME\_OVER} 状态；否则，转移到 \texttt{ROUND\_SWITCH} 。
+    \item \texttt{round\_switch}：进行回合切换。更新光标位置、回合数、当前玩家等数据。每1回合或每 16 回合结束时，增加兵力。状态切换到 \texttt{IN\_ROUND}。
+\end{itemize}
+
+
+% 以上游戏运行逻辑可以概括为以下框图。
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[scale=0.55]{images/states.png}
+%     \caption{游戏运行逻辑框图}
+%     \label{fig:logic}
+% \end{figure}
+
+\subsubsection{随机初始棋盘}
+简便起见，在本实现中，随机初始棋盘的实现方式如下。先使用 Python 脚本生成随机棋盘库（容量为 128）。在游戏开始时，玩家先按下 reset ，此时重置一个高频率（50 MHz）的循环计数器，当玩家按下另一个键（clock\_btn）时，即选定一个随机数，然后加载对应的初始地图。
+
+随机先手玩家同样采用类似的抽签方式产生，唯一区别是使用的时钟频率为 100 MHz，这样可以保证每张地图不与某一方玩家绑定，而是在地图选定之后，双方各有 50\% 的概率先手。
+
+生成初始棋盘的脚本为 \texttt{utils/random\_boards.py} 。使用方式见 \texttt{utils/README.md}。该脚本以运行时间为种子，生成随机初始棋盘。
+
+生成的棋盘保证：
+\begin{itemize}
+    \item 布局合理
+        \begin{itemize}
+            \item 每个棋盘不超过 32 个“特殊元素”（其中恰有 2 个王城），NPC 特殊元素（山地、空地）不超过 30 个。其余元素均为 NPC 空地。
+            \item NPC 特殊元素（山地、空地）的比例均在 35\% 与 65\% 之间。
+            \item 双方王城的距离充分大（曼哈顿距离不小于 12）且不在边缘。
+            \item 每个王城附近 $3\times 3$ 内至少有 1 个 NPC 城市。
+        \end{itemize}
+    \item 游戏可终止
+        \begin{itemize}
+            \item  双方王城之间是连通的，即存在一条连接双方王城的、不经过任何山的路径。
+        \end{itemize}
+\end{itemize}
+
+\subsubsection{随机初始棋盘数据结构}
+
+脚本生成的初始棋盘为若干个 word（字），每连续的 32 个 word 为 1 张初始棋盘的数据。每个word表示一个“特殊元素”，大小为 10 bit。
+\begin{itemize}
+    \item 该元素横坐标（h坐标）：4位
+    \item 该元素纵坐标（v坐标）：4位
+    \item 该元素类型：2位
+        \begin{itemize}
+            \item 山地：00
+            \item NPC城市：01
+            \item 红方王城：10
+            \item 蓝方王城：11
+        \end{itemize}
+\end{itemize}
+
+若特殊元素数目不足32，剩下的word的 (h, v) 记为(0xF, 0xF)，表示该word仅用于填充至32个word（也相当于表示该格为NPC普通领地）。
+
+
+\subsubsection{模块接口}
+下面为模块接口：
+
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{10}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    % firstnumber=174,
+    caption={游戏逻辑部分模块接口（仅用于测试的输出略去）} % 标题
+]
+module Game_Controller
+#(parameter VGA_WIDTH            = 0, 
+            BORAD_WIDTH          = 10, 
+            LOG2_BORAD_WIDTH     = 4, 
+            MAX_PLAYER_CNT       = 7, 
+            LOG2_MAX_PLAYER_CNT  = 3, 
+            LOG2_PIECE_TYPE_CNT  = 2, 
+            LOG2_MAX_TROOP       = 9, 
+            LOG2_MAX_ROUND       = 12,
+            ROUND_LIMIT          = 999,
+            LOG2_MAX_CURSOR_TYPE = 2,
+            MAX_STEP_TIME        = 15,
+            LOG2_MAX_STEP_TIME   = 5,
+            MAX_RANDOM_BOARD     = 128) (
+    //// input
+    input wire                    clock,
+    input wire                    clock_random_first_player,
+    input wire                    start,              // 游戏开始
+    input wire                    reset,
+    // 与 Keyboard_Decoder 交互：获取键盘操作信号 
+    input wire                    keyboard_ready,
+    input wire [2: 0]             keyboard_data,
+
+    // 与 Screen_Controller（的 vga 模块）交互： 获取当前的横纵坐标
+    input wire [VGA_WIDTH - 1: 0] hdata,
+    input wire [VGA_WIDTH - 1: 0] vdata,
+
+    //// output
+    // 与 Keyboard_Decoder 交互：输出键盘操作已被读取的信号
+    output wire                   keyboard_read_fin,  
+    // 游戏逻辑生成的图像
+    output wire [7: 0]            gen_red,
+    output wire [7: 0]            gen_green,
+    output wire [7: 0]            gen_blue,
+    output wire                   use_gen
+);
+\end{lstlisting}
+
+输入：
+\begin{itemize}
+    \item \texttt{clock}：输入时钟，为 $50 \text{MHz}$ 的时钟。
+    \item \texttt{clock\_random\_first\_player}：$100 \text{MHz}$ 的时钟，仅用于抽签产生随机先手玩家。
+    \item \texttt{start}：游戏开始按键信号。
+    \item \texttt{reset}：重置信号。连接 reset 按钮，该信号为 1 时，游戏会重置到 \texttt{READY} 状态。
+    \item \texttt{keyboard\_ready}, \texttt{keyboard\_data}：与键盘解码器交互的信号，参见第 \ref{subsubsection:interact-input-logic} 节。
+    \item \texttt{hdata}, \texttt{vdata}：与输出控制器交互的信号，参见第 \ref{subsubsection:interact-logic-output} 节。
+\end{itemize}
+
+输出：
+\begin{itemize}
+    \item \texttt{keyboard\_read\_fin}：与键盘解码器交互的信号，参见第 \ref{subsubsection:interact-input-logic} 节。
+    \item \texttt{gen\_red}, \texttt{gen\_blue}, \texttt{gen\_green}， \texttt{use\_gen}：与输出控制器交互的信号，参见第 \ref{subsubsection:interact-logic-output} 节。
+\end{itemize}
+
+
+\subsection{游戏画面绘制}
+项目中与该部分对应的 module 为 \texttt{Game\_Controller}模块（代码的后半部分），\texttt{Background\_Painter}模块，\texttt{Number\_Transfer}模块，和\texttt{Number\_Choose}模块。
+
+\subsubsection{实现细节}
+本项目存储的全部图片素材都以mif格式存储在片内RAM中，对每张图片素材使用一个RAM ip核，把像素位置转换为一维地址后传入ip核，从而读出对应像素应绘制的RGB值。使用的图片素材包括所有特殊格子类型（不同归属的 城市/王城/山地）、数字0-9（分为大小版本，大版本用作回合数、倒计时显示，小版本用作兵力显示）和文字（包括“50\%”字样、WINNER 和 DRAW）。
+
+游戏画面绘制主逻辑在\texttt{Game\_Controller}代码的后半部分实现，读入游戏逻辑部分保存的局面信息，接收由显示控制器部分VGA扫描传来的当前像素横纵坐标，根据局面选择显示的内容。绘制内容整体分为两种，即背景和游戏内容，背景部分通过\texttt{Background\_Painter}模块直接操控RGB值绘制（$10\times 10$ 的黑框灰底棋盘），游戏内容部分由\texttt{Game\_Controller}绘制，根据上述信息绘制数字、文字、特殊格子，并进行数据选择，判断该像素使用背景还是游戏内容，把选择信息和显示数据传给 \texttt{Screen\_Controller}。
+
+\texttt{Number\_Transfer}模块对于读入的数字打表作取模运算，将三位数拆分为百位、十位、个位，用于分别显示。该模块由\texttt{Game\_Controller}调用。
+
+\texttt{Number\_Choose}模块读入当前像素，打表取模转换为RAM地址，根据读入的个位、十位、百位作数据选择，将最后确定的数字显示数据（RGB）传给\texttt{Game\_Controller}。该模块由\texttt{Game\_Controller}调用。
+
+\subsubsection{模块接口}
+下面为模块接口：
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{12}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    caption={\texttt{Background\_Painter}源代码} % 标题
+] 
+module Background_Painter
+# (parameter VGA_WIDTH = 0) (
+	input  wire[VGA_WIDTH - 1:0] hdata,
+	input  wire[VGA_WIDTH - 1:0] vdata,
+	output wire[7:0] video_red,
+	output wire[7:0] video_green,
+	output wire[7:0] video_blue
+);
+\end{lstlisting}
+
+输入：
+\begin{itemize}
+    \item \texttt{hdata}：当前像素VGA扫描横坐标
+    \item \texttt{vdata}：当前像素VGA扫描纵坐标
+\end{itemize}
+
+输出：
+\begin{itemize}
+    \item \texttt{video\_red}：当前像素背景r值
+    \item \texttt{video\_green}：当前像素背景g值
+    \item \texttt{video\_blue}：当前像素背景b值
+\end{itemize}
+
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{12}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    caption={\texttt{Number\_Choose}源代码} % 标题
+] 
+module Number_Choose
+#(parameter VGA_WIDTH            = 0,
+			LOG2_BORAD_WIDTH     = 4)
+(
+	input wire[VGA_WIDTH-1:0] 				hdata,
+	input wire[VGA_WIDTH-1:0]				vdata,
+	input wire[3:0]							cur_ones,
+	input wire[3:0]							cur_tens,
+	input wire[3:0]							cur_hundreds,
+	input wire[3:0]							big_ones,
+	input wire[3:0]							big_tens,
+	input wire[3:0]							big_hundreds,
+	input									clock,
+    output wire [VGA_WIDTH - 1: 0]          vdata_to_ram,
+    output wire [VGA_WIDTH - 1: 0]          hdata_to_ram,
+	output wire[31:0]						bignumberdata,
+	output wire[LOG2_BORAD_WIDTH - 1:0]		cur_h,
+	output wire[LOG2_BORAD_WIDTH - 1:0]		cur_v,
+	output wire[31:0]						numberdata
+);
+\end{lstlisting}
+
+输入：
+\begin{itemize}
+    \item \texttt{video\_red}：当前像素背景r值
+    \item \texttt{video\_green}：当前像素背景g值
+    \item \texttt{video\_blue}：当前像素背景b值
+    \item \texttt{cur\_ones}：当前格兵力数字个位 
+    \item \texttt{cur\_tens}：当前格兵力数字十位 
+    \item \texttt{cur\_hundreds}：当前格兵力数字百位 
+    \item \texttt{cur\_ones}：当前大数字（回合或倒计时）个位 
+    \item \texttt{cur\_tens}：当前大数字十位 
+    \item \texttt{cur\_hundreds}：当前大数字百位 
+    \item \texttt{clock}：输入时钟，为$50 \text{MHz}$ 的游戏逻辑部分主时钟
+\end{itemize}
+
+
+输出：
+\begin{itemize}
+    \item \texttt{vdata\_to\_ram}：对40取模后的纵坐标，用于计算RAM地址
+    \item \texttt{hdata\_to\_ram}：对40取模后的横坐标，用于计算RAM地址
+    \item \texttt{bignumberdata}：从RAM中读取的大数字像素RGB值
+    \item \texttt{numberdata}：从RAM中读取的兵力数字像素RGB值
+    \item \texttt{cur\_h}：当前像素所在棋盘格横坐标
+    \item \texttt{cur\_v}：当前像素所在棋盘格纵坐标
+\end{itemize}
+
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{12}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    caption={\texttt{Number\_Transfer}源代码} % 标题
+] 
+module Number_Transfer
+#(parameter BIT = 9)(
+	input wire [BIT-1:0] number,
+	output wire [3:0] ones,
+	output wire [3:0] tens,
+	output wire [3:0] hundreds
+);
+\end{lstlisting}
+
+输入：
+\begin{itemize}
+    \item \texttt{number}：传入的三位十进制数字，用于转换为个位、十位、百位
+\end{itemize}
+
+输出：
+\begin{itemize}
+    \item \texttt{ones}：个位
+    \item \texttt{tens}：十位
+    \item \texttt{hundreds}：百位
+\end{itemize}
+
+
+\subsection{显示控制器}
+项目中与该部分对应的 module 为 \texttt{Screen\_Controller}。
+\subsubsection{实现细节}
+该部分首先调用VGA控制器，扫描生成行列坐标，传入\texttt{Game\_Controller}。然后分别读入\texttt{Game\_Controller}生成的画面数据和\texttt{Background\_Painter}生成的背景画面数据，根据\texttt{Game\_Controller}传入的数据选择信息，最终确定向外输出的画面RGB值。
+
+\subsubsection{模块接口}
+\begin{lstlisting}[
+    language=Verilog,
+    numbers=left,
+    frame=single,           % 添加边框
+    basicstyle=\fontsize{12}{12}\selectfont, % 设置全局字号
+    lineskip=4pt,           % 设置行距
+    tabsize=4,              % 设置制表符的宽度为4个空格
+    xleftmargin=15pt,       % 设置左侧缩进的距离为15pt
+    caption={\texttt{Screen\_Controller}源代码} % 标题
+] 
+module Screen_Controller
+#(parameter VGA_WIDTH = 0, HSIZE = 0, HFP = 0, HSP = 0, 
+HMAX = 0, VSIZE = 0, VFP = 0, VSP = 0, VMAX = 0, HSPP = 0, 
+VSPP = 0)
+(
+    // 时钟、复位
+    input  wire clk_vga,             // vga 输入时钟 (25M)
+    input  wire reset_n,             // 上电复位信号，低有效
+    // 游戏逻辑生成的图像
+    input  wire [7: 0] gen_red,
+    input  wire [7: 0] gen_green,
+    input  wire [7: 0] gen_blue,
+    input  wire        use_gen,      // 当前像素是使用游戏
+    逻辑生成的图像(1)还是背景图(0)
+
+    // 当前横纵坐标
+    output wire [VGA_WIDTH - 1: 0] hdata_o,
+    output wire [VGA_WIDTH - 1: 0] vdata_o,
+
+    // HDMI 图像输出
+    // '_O' 后缀表示该输出将直接接到 mod_top 的对应输出
+    output wire [7: 0] video_red_O,   // 红色像素，8位
+    output wire [7: 0] video_green_O, // 绿色像素，8位
+    output wire [7: 0] video_blue_O,  // 蓝色像素，8位
+    output wire        video_hsync_O, // 行同步信号
+    output wire        video_vsync_O, // 场同步信号
+    output wire        video_clk_O,   // 像素时钟输出
+    output wire        video_de_O     // 行数据有效信号，
+    用于区分消隐区
+
+);
+\end{lstlisting}
+
+输入：
+\begin{itemize}
+    \item \texttt{clk\_vga}：vga输入时钟，为$25 \text{MHZ}$
+    \item \texttt{reset\_n}：复位信号，低有效
+    \item \texttt{gen\_red}：\texttt{Game\_Controller}绘制的R值
+    \item \texttt{gen\_green}：\texttt{Game\_Controller}绘制的G值
+    \item \texttt{gen\_blue}：\texttt{Game\_Controller}绘制的B值
+    \item \texttt{use\_gen}：判断当前像素使用有游戏逻辑生成的画面还是背景
+\end{itemize}
+
+输出：
+\begin{itemize}
+    \item \texttt{hdata\_o}：vga扫描得到的当前横坐标
+    \item \texttt{vdata\_o}：vga扫描得到的当前纵坐标
+    \item \texttt{video\_red\_O}：输出到屏幕的R值
+    \item \texttt{video\_green\_O}：输出到屏幕的G值
+    \item \texttt{video\_blue\_O}：输出到屏幕的B值
+    \item \texttt{video\_hsync\_O}：行同步（水平同步）信号
+    \item \texttt{video\_vsync\_O}：场同步（垂直同步）信号
+    \item \texttt{video\_clk\_O}：像素时钟输出
+    \item \texttt{video\_de\_O}：行数据有效信号，用于区分消隐区
+\end{itemize}
